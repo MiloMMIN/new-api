@@ -49,6 +49,9 @@ export interface Model {
   supported_endpoints?: string[]
   status: number
   sync_official: number
+  avail_status?: string
+  avail_msg?: string
+  avail_at?: number
   created_time: number
   updated_time: number
   name_rule: number

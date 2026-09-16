@@ -43,6 +43,9 @@ type Model struct {
 	SupportedEndpoints []string       `json:"supported_endpoints,omitempty" gorm:"-"`
 	Status             int            `json:"status" gorm:"default:1"`
 	SyncOfficial       int            `json:"sync_official" gorm:"default:1"`
+	AvailStatus        string         `json:"avail_status,omitempty" gorm:"size:16"`
+	AvailMsg           string         `json:"avail_msg,omitempty" gorm:"type:varchar(255)"`
+	AvailAt            int64          `json:"avail_at,omitempty" gorm:"bigint"`
 	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime        int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt          gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_model_name_delete_at,priority:2"`
@@ -265,7 +268,7 @@ func (mi *Model) Update() error {
 		}
 		mi.UpdatedTime = common.GetTimestamp()
 		return tx.Model(&Model{}).Where("id = ?", mi.Id).
-			Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time").Updates(mi).Error
+			Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "avail_status", "avail_msg", "avail_at", "updated_time").Updates(mi).Error
 	})
 }
 

@@ -254,6 +254,46 @@ export function useModelsColumns(
       ),
     },
     {
+      accessorKey: 'avail_status',
+      header: t('Availability'),
+      size: 110,
+      enableSorting: false,
+      meta: { mobileHidden: true },
+      cell: ({ row }) => {
+        const s = row.original.avail_status
+        const conf =
+          s === 'ok'
+            ? { v: 'success' as const, l: t('Available') }
+            : s === 'quota'
+              ? { v: 'warning' as const, l: t('Rate limited') }
+              : s === 'error'
+                ? { v: 'danger' as const, l: t('Unavailable') }
+                : { v: 'neutral' as const, l: t('Not tested') }
+        const tip = [
+          row.original.avail_msg,
+          row.original.avail_at
+            ? t('Probed at {{time}}', {
+                time: formatTimestampToDate(row.original.avail_at),
+              })
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+        const badge = <StatusBadge label={conf.l} variant={conf.v} size='sm' />
+        if (!tip) return badge
+        return (
+          <Tooltip>
+            <TooltipTrigger
+              render={<span tabIndex={0} className='inline-flex' />}
+            >
+              {badge}
+            </TooltipTrigger>
+            <TooltipContent role='tooltip'>{tip}</TooltipContent>
+          </Tooltip>
+        )
+      },
+    },
+    {
       accessorKey: 'sync_official',
       header: () => (
         <TruncatedCell className='max-w-[120px]'>
