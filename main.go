@@ -210,9 +210,10 @@ func main() {
 	if port == "" {
 		port = strconv.Itoa(*common.Port)
 	}
+	host := os.Getenv("HOST")
 
 	srv := &http.Server{
-		Addr:    ":" + port,
+		Addr:    host + ":" + port,
 		Handler: server,
 	}
 

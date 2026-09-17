@@ -66,6 +66,10 @@ import {
 import { AnnouncementsPanel } from './announcements-panel'
 import { ApiInfoPanel } from './api-info-panel'
 import { FAQPanel } from './faq-panel'
+import { FarmAccessPanel } from './farm-access-panel'
+import { PublicAccessPanel } from './public-access-panel'
+import { GroupManagePanel } from './group-manage-panel'
+import { GroupHealthPanel } from './group-health-panel'
 import { PerformanceHealthPanel } from './performance-health-panel'
 import { SummaryCards } from './summary-cards'
 import { UptimePanel } from './uptime-panel'
@@ -813,6 +817,21 @@ export function OverviewDashboard() {
                       <PerformanceHealthPanel />
                     </CardStaggerItem>
                   )}
+                  {isAdmin && (
+                    <CardStaggerItem>
+                      <FarmAccessPanel />
+                    </CardStaggerItem>
+                  )}
+                  {isAdmin && (
+                    <CardStaggerItem>
+                      <PublicAccessPanel />
+                    </CardStaggerItem>
+                  )}
+                  {isAdmin && (
+                    <CardStaggerItem>
+                      <GroupManagePanel />
+                    </CardStaggerItem>
+                  )}
                   {showApiInfoPanel && (
                     <CardStaggerItem>
                       <ApiInfoPanel />
@@ -820,7 +839,7 @@ export function OverviewDashboard() {
                   )}
                   {showAnnouncementsPanel && (
                     <CardStaggerItem>
-                      <AnnouncementsPanel />
+                      <AnnouncementsPanel editable={isAdmin} />
                     </CardStaggerItem>
                   )}
                   {showFAQPanel && (
@@ -837,6 +856,12 @@ export function OverviewDashboard() {
               )}
             </CardStaggerContainer>
           )}
+
+          <CardStaggerContainer>
+            <CardStaggerItem>
+              <GroupHealthPanel />
+            </CardStaggerItem>
+          </CardStaggerContainer>
         </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>

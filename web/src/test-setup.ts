@@ -83,6 +83,13 @@ if (!Range.prototype.getBoundingClientRect) {
   })
 }
 
+// jsdom lacks the Web Animations API. Do NOT polyfill
+// `Element.prototype.getAnimations` globally: base-ui popups branch on its
+// presence (animation-finished waiting), and existing tests rely on the
+// undefined path. Files that mount base-ui ScrollArea — whose
+// `viewport.getAnimations({subtree:true})` call is unconditional — should
+// stub it locally instead (see overview __tests__/announcements-panel).
+
 window.requestAnimationFrame = (callback: FrameRequestCallback) =>
   window.setTimeout(() => callback(performance.now()), 0)
 window.cancelAnimationFrame = (handle: number) => window.clearTimeout(handle)

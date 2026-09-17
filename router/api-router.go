@@ -27,6 +27,14 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
+		farmCtlRoute := apiRouter.Group("/farmctl")
+		farmCtlRoute.Use(middleware.AdminAuth())
+		{
+			farmCtlRoute.GET("/config", controller.FarmConfig)
+			farmCtlRoute.POST("/config", controller.FarmConfig)
+			farmCtlRoute.GET("/tunnel", controller.FarmTunnel)
+			farmCtlRoute.POST("/tunnel", controller.FarmTunnel)
+		}
 		apiRouter.GET("/notice", controller.GetNotice)
 		apiRouter.GET("/user-agreement", controller.GetUserAgreement)
 		apiRouter.GET("/privacy-policy", controller.GetPrivacyPolicy)

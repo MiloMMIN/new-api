@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
 import { RichContent } from '@/components/rich-content'
+import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { formatDateTimeObject } from '@/lib/time'
 
@@ -33,12 +34,18 @@ interface AnnouncementDetailModalProps {
     publishDate?: string
     extra?: string
   } | null
+  editable?: boolean
+  onEdit?: () => void
+  onDelete?: () => void
 }
 
 export function AnnouncementDetailModal({
   open,
   onOpenChange,
   announcement,
+  editable = false,
+  onEdit,
+  onDelete,
 }: AnnouncementDetailModalProps) {
   const { t } = useTranslation()
   return (
@@ -54,6 +61,16 @@ export function AnnouncementDetailModal({
       contentClassName='sm:max-w-lg'
       contentHeight='auto'
       bodyClassName='space-y-4'
+      footer={
+        editable ? (
+          <>
+            <Button variant='outline' onClick={onDelete}>
+              {t('Delete')}
+            </Button>
+            <Button onClick={onEdit}>{t('Edit')}</Button>
+          </>
+        ) : undefined
+      }
     >
       <ScrollArea className='max-h-[min(58vh,520px)] pr-4'>
         <div className='space-y-4'>

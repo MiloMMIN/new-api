@@ -16,21 +16,39 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Megaphone } from 'lucide-react'
+import { Megaphone, Plus } from 'lucide-react'
 import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAnnouncements } from '@/features/dashboard/hooks/use-status-data'
 import { getPreviewText } from '@/features/dashboard/lib'
 import type { AnnouncementItem } from '@/features/dashboard/types'
+import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
 import { getAnnouncementColorClass } from '@/lib/colors'
+import { handleServerError } from '@/lib/handle-server-error'
 import { formatDateTimeObject } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
 import { PanelWrapper } from '../ui/panel-wrapper'
 import { AnnouncementDetailModal } from './announcement-detail-dialog'
+import {
+  AnnouncementEditDialog,
+  type AnnouncementFormValues,
+} from './announcement-edit-dialog'
 
 const AnnouncementStatusDot = memo(function AnnouncementStatusDot(props: {
   type?: string
@@ -45,16 +63,67 @@ const AnnouncementStatusDot = memo(function AnnouncementStatusDot(props: {
   )
 })
 
-export function AnnouncementsPanel() {
+export function AnnouncementsPanel({ editable = false }: { editable?: boolean }) {
   const { t } = useTranslation()
   const { items: list, loading } = useAnnouncements()
-  const [selectedAnnouncement, setSelectedAnnouncement] =
-    useState<AnnouncementItem | null>(null)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const updateOption = useUpdateOption()
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
 
-  const handleAnnouncementClick = (item: AnnouncementItem) => {
-    setSelectedAnnouncement(item)
-    setIsDialogOpen(true)
+  const selected =
+    selectedIdx != null ? (list[selectedIdx] ?? null) : null
+
+  const saveList = async (items: AnnouncementItem[]) => {
+    // 补全 id 后整体写回 console_setting.announcements
+    const payload = items.map((item, i) => ({ ...item, id: item.id ?? i + 1 }))
+    await updateOption.mutateAsync({
+      key: 'console_setting.announcements',
+      value: JSON.stringify(payload),
+    })
+  }
+
+  const handleSubmit = async (values: AnnouncementFormValues) => {
+    try {
+      if (selectedIdx != null && list[selectedIdx]) {
+        const next = list.map((item, i) =>
+          i === selectedIdx
+            ? {
+                ...item,
+                ...values,
+                publishDate: item.publishDate ?? new Date().toISOString(),
+              }
+            : item
+        )
+        await saveList(next)
+      } else {
+        const id = Math.max(0, ...list.map((item) => item.id ?? 0)) + 1
+        await saveList([
+          ...list,
+          { id, publishDate: new Date().toISOString(), ...values },
+        ])
+      }
+      toast.success(t('Announcements saved successfully'))
+      setIsEditOpen(false)
+      setIsDetailOpen(false)
+      setSelectedIdx(null)
+    } catch (error) {
+      handleServerError(error, t('Failed to save announcements'))
+    }
+  }
+
+  const handleDelete = async () => {
+    if (selectedIdx == null) return
+    try {
+      await saveList(list.filter((_, i) => i !== selectedIdx))
+      toast.success(t('Announcements saved successfully'))
+      setIsDeleteOpen(false)
+      setIsDetailOpen(false)
+      setSelectedIdx(null)
+    } catch (error) {
+      handleServerError(error, t('Failed to save announcements'))
+    }
   }
 
   return (
@@ -73,6 +142,21 @@ export function AnnouncementsPanel() {
       emptyMessage={t('No announcements at this time')}
       height='h-72'
       contentClassName='p-0'
+      headerActions={
+        editable ? (
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => {
+              setSelectedIdx(null)
+              setIsEditOpen(true)
+            }}
+          >
+            <Plus data-icon='inline-start' />
+            {t('Add')}
+          </Button>
+        ) : undefined
+      }
     >
       <ScrollArea className='h-72'>
         <div>
@@ -82,7 +166,10 @@ export function AnnouncementsPanel() {
               <button
                 key={key}
                 type='button'
-                onClick={() => handleAnnouncementClick(item)}
+                onClick={() => {
+                  setSelectedIdx(idx)
+                  setIsDetailOpen(true)
+                }}
                 className={cn(
                   'group hover:bg-muted/40 w-full px-3 py-3 text-left transition-colors sm:px-5 sm:py-3.5',
                   idx < list.length - 1 && 'border-border/60 border-b'
@@ -113,10 +200,44 @@ export function AnnouncementsPanel() {
       </ScrollArea>
 
       <AnnouncementDetailModal
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        announcement={selectedAnnouncement}
+        open={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+        announcement={selected}
+        editable={editable}
+        onEdit={() => setIsEditOpen(true)}
+        onDelete={() => setIsDeleteOpen(true)}
       />
+
+      {editable && (
+        <>
+          <AnnouncementEditDialog
+            open={isEditOpen}
+            onOpenChange={setIsEditOpen}
+            announcement={selected}
+            saving={updateOption.isPending}
+            onSubmit={handleSubmit}
+          />
+          <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t('This announcement will be removed from the list.')}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
+                <AlertDialogAction
+                  variant='destructive'
+                  onClick={handleDelete}
+                >
+                  {t('Delete')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
     </PanelWrapper>
   )
 }

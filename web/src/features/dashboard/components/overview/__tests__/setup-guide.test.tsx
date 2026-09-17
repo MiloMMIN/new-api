@@ -114,14 +114,14 @@ describe('overview setup guide', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(
       screen.getAllByRole('heading').map((heading) => heading.textContent)
-    ).toEqual(['Overview', 'Usage at a glance'])
+    ).toEqual(['Overview', 'Usage at a glance', 'Group health'])
     expect(screen.queryByText('Setup guide complete')).not.toBeInTheDocument()
     expect(screen.queryByText('Setup progress: 3/3')).not.toBeInTheDocument()
     for (const name of ['API Keys', 'Channels', 'Usage Logs', 'Pricing']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
     }
-    const panel = document.getElementById(
-      toggle.getAttribute('aria-controls') ?? ''
+    const panel = document.querySelector(
+      `#${CSS.escape(toggle.getAttribute('aria-controls') ?? '')}`
     )
     expect(panel).toBeInTheDocument()
     expect(panel).not.toBeVisible()
@@ -137,7 +137,9 @@ describe('overview setup guide', () => {
     await user.keyboard('{Enter}')
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
     expect(
-      document.getElementById(toggle.getAttribute('aria-controls') ?? '')
+      document.querySelector(
+        `#${CSS.escape(toggle.getAttribute('aria-controls') ?? '')}`
+      )
     ).toBeVisible()
     expect(
       screen.getByRole('heading', {
