@@ -77,6 +77,13 @@ export const THEME_PRESETS = [
     name: 'Lavender Dream',
     swatches: ['oklch(0.5709 0.1808 306.89)', 'oklch(0.811 0.0589 201.14)'],
   },
+  {
+    // Deep-slate glass console: frosted surfaces over a dark canvas with a
+    // teal gradient accent. Swatches preview canvas → primary.
+    value: 'jade-glass',
+    name: 'Jade Glass',
+    swatches: ['oklch(0.168 0.03 270)', 'oklch(0.704 0.122 181.6)'],
+  },
 ] as const
 
 export type ThemePreset = (typeof THEME_PRESETS)[number]['value']
@@ -116,7 +123,7 @@ export type ThemeCustomization = {
 }
 
 export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
-  preset: 'default',
+  preset: 'jade-glass',
   font: 'default',
   radius: 'default',
   scale: 'default',

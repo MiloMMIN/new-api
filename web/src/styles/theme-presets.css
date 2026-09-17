@@ -426,10 +426,14 @@ For commercial licensing, please contact support@quantumnous.com
  *   - `anthropic`: warm cream surfaces are a brand choice, NOT a primary-mix
  *     derivation (the Anthropic system deliberately uses warm neutrals for
  *     cards/borders rather than tinting them with the clay accent).
- *   - `simple-large`: keeps intentionally neutral, high-contrast surfaces. */
+ *   - `simple-large`: keeps intentionally neutral, high-contrast surfaces.
+ *   - `jade-glass`: translucent glass surfaces + bespoke dark canvas are
+ *     the preset's signature, NOT a primary-mix derivation. */
 [data-theme-preset]:not([data-theme-preset='default']):not(
   [data-theme-preset='anthropic']
-):not([data-theme-preset='simple-large']) {
+):not([data-theme-preset='simple-large']):not(
+  [data-theme-preset='jade-glass']
+) {
   --card: color-mix(in oklch, var(--primary) 3%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 5%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 7%, var(--background));
@@ -454,7 +458,9 @@ For commercial licensing, please contact support@quantumnous.com
 .dark
   [data-theme-preset]:not([data-theme-preset='default']):not(
     [data-theme-preset='anthropic']
-  ):not([data-theme-preset='simple-large']) {
+  ):not([data-theme-preset='simple-large']):not(
+    [data-theme-preset='jade-glass']
+  ) {
   --card: color-mix(in oklch, var(--primary) 8%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 12%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 12%, var(--background));
@@ -610,6 +616,179 @@ For commercial licensing, please contact support@quantumnous.com
 
   --skeleton-base: oklch(0.305 0.004 60);
   --skeleton-highlight: oklch(0.41 0.004 60);
+}
+
+/* ── Jade Glass ─────────────────────────────────────────────────────────── */
+/*
+ * Deep-slate canvas with frosted-glass surfaces and a teal primary accent —
+ * the visual language of modern self-hosted API consoles (dark-first design
+ * with a matching light mode). Signature elements:
+ *   - translucent card/popover/sidebar surfaces + backdrop blur
+ *   - teal-500 → teal-600 gradient on primary buttons
+ *   - soft teal aurora + dot-grid backdrop on the dark canvas
+ *
+ * Opted out of the semantic surface bridge above: glass surfaces are bespoke
+ * translucent steps over the page canvas, not primary-mix tints.
+ */
+[data-theme-preset='jade-glass'] {
+  --background: oklch(0.978 0.008 190); /* ≈ minted gray-50 */
+  --foreground: oklch(0.28 0.045 262); /* ≈ slate-800 */
+  --card: oklch(1 0 0 / 78%);
+  --card-foreground: oklch(0.28 0.045 262);
+  --popover: oklch(1 0 0 / 92%);
+  --popover-foreground: oklch(0.28 0.045 262);
+
+  --primary: oklch(0.627 0.105 181); /* teal-600 */
+  --primary-foreground: oklch(1 0 0);
+  --jg-deep: oklch(0.56 0.09 178); /* gradient endpoint ≈ teal-700 */
+
+  --secondary: oklch(0.955 0.018 185);
+  --secondary-foreground: oklch(0.35 0.04 262);
+  --muted: oklch(0.952 0.01 190);
+  --muted-foreground: oklch(0.556 0.037 257); /* slate-500 */
+  --accent: oklch(0.94 0.028 182);
+  --accent-foreground: oklch(0.4 0.07 182); /* teal-800 */
+
+  --destructive: oklch(0.577 0.215 27);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.627 0.14 160); /* emerald-600 */
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.75 0.15 75);
+  --warning-foreground: oklch(0.28 0.045 262);
+  --info: oklch(0.6 0.15 230);
+  --info-foreground: oklch(0.985 0 0);
+  --neutral: oklch(0.556 0.037 257);
+  --neutral-foreground: oklch(0.985 0 0);
+
+  --border: oklch(0.9 0.012 240 / 75%);
+  --input: oklch(0.88 0.015 240);
+  --ring: oklch(0.704 0.122 181.6); /* teal-500 */
+
+  --chart-1: oklch(0.704 0.122 181.6);
+  --chart-2: oklch(0.72 0.15 160);
+  --chart-3: oklch(0.72 0.12 215);
+  --chart-4: oklch(0.78 0.15 80);
+  --chart-5: oklch(0.65 0.15 250);
+
+  --sidebar: oklch(0.985 0.006 190 / 80%);
+  --sidebar-foreground: oklch(0.35 0.04 262);
+  --sidebar-primary: oklch(0.627 0.105 181);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.94 0.028 182);
+  --sidebar-accent-foreground: oklch(0.35 0.04 262);
+  --sidebar-border: oklch(0.9 0.012 240 / 75%);
+  --sidebar-ring: oklch(0.704 0.122 181.6);
+
+  --skeleton-base: oklch(0.92 0.01 190);
+  --skeleton-highlight: oklch(0.96 0.008 190);
+
+  --radius: 0.75rem;
+
+  /* Light canvas: a whisper of teal over neutral gray. */
+  background-image: linear-gradient(
+    160deg,
+    oklch(0.978 0.014 185),
+    oklch(0.965 0.006 250) 60%
+  );
+  background-attachment: fixed;
+}
+.dark [data-theme-preset='jade-glass'] {
+  --background: oklch(0.168 0.03 270); /* ≈ slate-950 #020617 */
+  --foreground: oklch(0.96 0.008 250); /* slate-100 */
+  --card: oklch(0.28 0.04 262 / 68%); /* slate-800 glass */
+  --card-foreground: oklch(0.96 0.008 250);
+  --popover: oklch(0.28 0.04 262 / 92%);
+  --popover-foreground: oklch(0.96 0.008 250);
+
+  --primary: oklch(0.704 0.122 181.6); /* teal-500 */
+  --primary-foreground: oklch(1 0 0);
+  --jg-deep: oklch(0.627 0.105 181); /* gradient endpoint ≈ teal-600 */
+
+  --secondary: oklch(0.34 0.035 262 / 70%);
+  --secondary-foreground: oklch(0.9 0.012 250);
+  --muted: oklch(0.27 0.035 262 / 60%);
+  --muted-foreground: oklch(0.7 0.025 257); /* slate-400 */
+  --accent: oklch(0.704 0.122 181.6 / 16%);
+  --accent-foreground: oklch(0.855 0.12 178); /* teal-300 */
+
+  --destructive: oklch(0.704 0.19 22);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.79 0.15 160); /* emerald-400 */
+  --success-foreground: oklch(0.168 0.03 270);
+  --warning: oklch(0.82 0.15 80); /* amber-400 */
+  --warning-foreground: oklch(0.168 0.03 270);
+  --info: oklch(0.75 0.11 230); /* sky-400 */
+  --info-foreground: oklch(0.168 0.03 270);
+  --neutral: oklch(0.7 0.025 257);
+  --neutral-foreground: oklch(0.168 0.03 270);
+
+  --border: oklch(0.38 0.035 262 / 55%); /* slate-700/50 */
+  --input: oklch(0.38 0.035 262 / 70%);
+  --ring: oklch(0.777 0.135 181.5); /* teal-400 */
+
+  --chart-1: oklch(0.777 0.135 181.5);
+  --chart-2: oklch(0.79 0.15 160);
+  --chart-3: oklch(0.78 0.12 215);
+  --chart-4: oklch(0.82 0.15 80);
+  --chart-5: oklch(0.74 0.13 230);
+
+  --sidebar: oklch(0.21 0.03 268 / 82%);
+  --sidebar-foreground: oklch(0.9 0.012 250);
+  --sidebar-primary: oklch(0.704 0.122 181.6);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.704 0.122 181.6 / 16%);
+  --sidebar-accent-foreground: oklch(0.9 0.012 250);
+  --sidebar-border: oklch(0.38 0.035 262 / 55%);
+  --sidebar-ring: oklch(0.777 0.135 181.5);
+
+  --skeleton-base: oklch(0.28 0.035 262);
+  --skeleton-highlight: oklch(0.36 0.035 262);
+
+  /* Dark canvas: teal aurora wash + faint dot grid, fixed under content. */
+  background-color: var(--background);
+  background-image:
+    radial-gradient(
+      42rem 30rem at 85% -10%,
+      color-mix(in oklch, var(--primary) 16%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      36rem 26rem at -8% 108%,
+      color-mix(in oklch, var(--chart-3) 11%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      circle,
+      color-mix(in oklch, var(--primary) 6%, transparent) 1px,
+      transparent 1px
+    );
+  background-size:
+    auto,
+    auto,
+    42px 42px;
+  background-attachment: fixed;
+}
+
+/* Frosted surfaces — translucency alone only shows the canvas through;
+ * the blur is what sells the glass. Scoped to real surface slots so nested
+ * content isn't re-blurred. */
+[data-theme-preset='jade-glass'] :is(
+    [data-slot='card'],
+    .bg-popover,
+    .bg-sidebar
+  ) {
+  backdrop-filter: blur(20px) saturate(1.35);
+  -webkit-backdrop-filter: blur(20px) saturate(1.35);
+}
+
+/* Teal gradient CTA — the preset's signature button treatment. */
+[data-theme-preset='jade-glass'] [data-slot='button'].bg-primary:not(:disabled) {
+  background-image: linear-gradient(to right, var(--primary), var(--jg-deep));
+  box-shadow:
+    0 2px 10px -2px color-mix(in oklch, var(--primary) 50%, transparent);
+}
+[data-theme-preset='jade-glass'] [data-slot='button'].bg-primary:not(:disabled):hover {
+  filter: brightness(1.07);
 }
 
 /* ── Font axis ────────────────────────────────────────────────────────────
