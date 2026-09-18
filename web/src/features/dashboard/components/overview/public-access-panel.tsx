@@ -17,11 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Cloud, Globe, Loader2 } from 'lucide-react'
+import { Cloud, ExternalLink, Globe, Loader2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { IconBadge } from '@/components/ui/icon-badge'
@@ -34,6 +35,7 @@ type TunnelStatus = {
   available: boolean
   state: 'running' | 'stopped' | 'missing' | 'unavailable' | 'error'
   token_set: boolean
+  public_url?: string
   msg?: string
 }
 
@@ -226,6 +228,34 @@ export function PublicAccessPanel() {
             </div>
           )}
         </div>
+
+        {tunnel.public_url && (
+          <div className='flex items-center gap-2'>
+            <span className='text-muted-foreground shrink-0 text-xs'>
+              {t('Public URL')}
+            </span>
+            <a
+              href={tunnel.public_url}
+              target='_blank'
+              rel='noreferrer'
+              className='bg-muted/60 hover:bg-muted flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border px-2.5 transition-colors'
+            >
+              <Globe className='text-muted-foreground size-3.5 shrink-0' />
+              <span className='min-w-0 flex-1 truncate font-mono text-xs'>
+                {tunnel.public_url}
+              </span>
+              <ExternalLink className='text-muted-foreground size-3.5 shrink-0' />
+            </a>
+            <CopyButton
+              value={tunnel.public_url}
+              variant='outline'
+              size='sm'
+              iconClassName='size-3.5'
+              tooltip={t('Copy URL')}
+              aria-label={t('Copy URL')}
+            />
+          </div>
+        )}
 
         {tunnel.available && (
           <div className='flex items-center gap-2'>

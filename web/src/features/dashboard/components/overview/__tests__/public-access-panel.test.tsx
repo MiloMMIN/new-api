@@ -80,6 +80,37 @@ describe('PublicAccessPanel', () => {
     expect(screen.getByText('Restart')).toBeInTheDocument()
   })
 
+  it('shows the public url with a copy button when farm reports one', async () => {
+    mockApis({
+      tunnel: {
+        available: true,
+        state: 'running',
+        token_set: true,
+        public_url: 'https://api.example.com',
+      },
+    })
+    renderPanel()
+    const link = await screen.findByRole('link', {
+      name: /api\.example\.com/,
+    })
+    expect(link).toHaveAttribute('href', 'https://api.example.com')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(
+      screen.getByRole('button', { name: 'Copy URL' })
+    ).toBeInTheDocument()
+  })
+
+  it('hides the public url row when farm reports none', async () => {
+    mockApis({
+      tunnel: { available: true, state: 'stopped', token_set: true },
+    })
+    renderPanel()
+    expect(await screen.findByText('Tunnel stopped')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Copy URL' })
+    ).not.toBeInTheDocument()
+  })
+
   it('disables start when tunnel is missing and no token is set', async () => {
     mockApis({
       tunnel: { available: true, state: 'missing', token_set: false },
