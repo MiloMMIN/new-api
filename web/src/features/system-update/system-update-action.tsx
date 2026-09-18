@@ -55,7 +55,6 @@ function AdminSystemUpdateAction(props: SystemUpdateActionProps) {
   const [open, setOpen] = useState(false)
   const compact = props.compact ?? true
   const versionPresentation = props.presentation === 'version'
-  const version = update.currentVersion?.trim() || t('Unknown version')
   const label = update.shouldNotify
     ? t('Update available')
     : t('Check for updates')
@@ -68,15 +67,28 @@ function AdminSystemUpdateAction(props: SystemUpdateActionProps) {
     description = t('Failed to check for updates')
   }
   const updateAnnouncement = update.shouldNotify ? description : ''
+
+  let versionStatusLabel = ''
   if (versionPresentation) {
-    const versionDescription = t(
-      'System updates, current version: {{version}}',
-      { version }
-    )
-    description =
-      update.shouldNotify || update.snapshot?.error
-        ? `${versionDescription}\n${description}`
-        : versionDescription
+    if (update.checking && !update.snapshot) {
+      versionStatusLabel = t('Checking updates...')
+    } else if (update.shouldNotify) {
+      versionStatusLabel = t('Update available')
+    } else if (update.snapshot?.error) {
+      versionStatusLabel = t('Failed to check for updates')
+    } else if (update.release) {
+      versionStatusLabel = t('Up to date')
+    } else if (update.snapshot?.lastCheckedAt) {
+      versionStatusLabel = t('No releases found.')
+    } else {
+      versionStatusLabel = t('Updates have not been checked yet.')
+    }
+    description = `${t('System updates')}: ${versionStatusLabel}`
+    if (update.shouldNotify && update.release) {
+      description += `\n${t('New version available: {{version}}', {
+        version: update.release.tag_name,
+      })}`
+    }
   }
 
   let triggerContent = (
@@ -104,17 +116,14 @@ function AdminSystemUpdateAction(props: SystemUpdateActionProps) {
           )}
           aria-hidden='true'
         />
-        <span className='hidden max-w-32 truncate font-mono text-xs @min-[22rem]/system-brand:inline'>
-          {version}
+        <span
+          className={cn(
+            'hidden max-w-32 truncate text-xs @min-[22rem]/system-brand:inline',
+            update.shouldNotify && 'text-primary font-medium'
+          )}
+        >
+          {versionStatusLabel}
         </span>
-        {update.shouldNotify && (
-          <Badge
-            variant='secondary'
-            className='bg-primary/10 text-primary hidden h-5 px-1.5 text-[10px] @min-[22rem]/system-brand:inline-flex'
-          >
-            {t('Update available')}
-          </Badge>
-        )}
       </>
     )
   }

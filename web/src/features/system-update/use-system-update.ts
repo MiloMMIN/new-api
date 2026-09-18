@@ -156,6 +156,10 @@ export function useSystemUpdate() {
   const release = query.data?.release ?? null
   const comparison = compareSystemVersions(currentVersion, release?.tag_name)
   const hasUpdate = comparison === -1
+  // Dev/fork builds carry no comparable version; for those, any fetched
+  // release counts as pending until the administrator acknowledges it.
+  const upstreamPending =
+    release !== null && (hasUpdate || comparison === null)
   const isIgnored = useSyncExternalStore(subscribeSystemUpdatePreferences, () =>
     Boolean(
       user &&
@@ -187,7 +191,7 @@ export function useSystemUpdate() {
     comparison,
     hasUpdate,
     isIgnored,
-    shouldNotify: isAdmin && hasUpdate && !isIgnored,
+    shouldNotify: isAdmin && upstreamPending && !isIgnored,
     setIgnored,
     checking: query.isFetching,
     online,

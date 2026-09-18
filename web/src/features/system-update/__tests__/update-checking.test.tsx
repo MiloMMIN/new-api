@@ -163,10 +163,10 @@ describe('administrator update entry', () => {
     })
     expect(buttons).toHaveLength(2)
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(within(buttons[0]).getByText('v1.0.0-rc.35')).toHaveClass('truncate')
     expect(within(buttons[0]).getByText('Update available')).toHaveClass(
+      'truncate',
       'hidden',
-      '@min-[22rem]/system-brand:inline-flex'
+      '@min-[22rem]/system-brand:inline'
     )
     expect(within(buttons[1]).getByText('Update available')).not.toHaveClass(
       'hidden'
@@ -250,9 +250,10 @@ describe('administrator update entry', () => {
       render(<SystemUpdateAction presentation='version' />, {
         wrapper: Wrapper,
       })
-      const trigger = screen.getByRole('button', {
-        name: 'System updates, current version: Unknown version',
+      const trigger = await screen.findByRole('button', {
+        name: /New version available: v1\.0\.0-rc\.36/,
       })
+      expect(within(trigger).getByText('Update available')).toBeInTheDocument()
       await user.click(trigger)
       const dialog = screen.getByRole('dialog')
       expect(within(dialog).getByText('Unknown version')).toBeInTheDocument()
@@ -271,6 +272,7 @@ describe('administrator update entry', () => {
       expect(
         within(dialog).getByText('This version is ignored')
       ).toBeInTheDocument()
+      expect(within(trigger).getByText('Up to date')).toBeInTheDocument()
       expect(trigger).not.toHaveAttribute(
         'title',
         expect.stringContaining('New version available')
@@ -370,7 +372,7 @@ describe('administrator update entry', () => {
 })
 
 describe('version label presentation', () => {
-  test('keeps the current version visible while checking and after finding no newer version', async () => {
+  test('shows a checking label while pending and up-to-date after finding no newer version', async () => {
     let finishRequest: ((response: Response) => void) | undefined
     fetchMock.mockImplementation(
       () =>
@@ -381,10 +383,10 @@ describe('version label presentation', () => {
     client.setQueryData(STATUS_QUERY_KEY, { version: release.tag_name })
     render(<SystemUpdateAction presentation='version' />, { wrapper: Wrapper })
     const trigger = screen.getByRole('button', {
-      name: 'System updates, current version: v1.0.0-rc.36',
+      name: 'System updates: Checking updates...',
     })
     expect(trigger).toHaveAttribute('aria-busy', 'true')
-    expect(within(trigger).getByText(release.tag_name)).toBeInTheDocument()
+    expect(within(trigger).getByText('Checking updates...')).toBeInTheDocument()
     expect(
       within(trigger).queryByText('Check for updates')
     ).not.toBeInTheDocument()
@@ -392,33 +394,35 @@ describe('version label presentation', () => {
       finishRequest?.(new Response(JSON.stringify([release])))
     })
     await waitFor(() => expect(trigger).toHaveAttribute('aria-busy', 'false'))
-    expect(within(trigger).getByText(release.tag_name)).toBeInTheDocument()
+    expect(within(trigger).getByText('Up to date')).toBeInTheDocument()
     expect(
       within(trigger).queryByText('Update available')
     ).not.toBeInTheDocument()
   })
 
-  test('shows an unknown-version label when the server has not supplied a version', async () => {
+  test('shows update available when the server version cannot be compared', async () => {
     client.setQueryData(STATUS_QUERY_KEY, { version: '' })
     render(<SystemUpdateAction presentation='version' />, { wrapper: Wrapper })
-    const trigger = screen.getByRole('button', {
-      name: 'System updates, current version: Unknown version',
+    const trigger = await screen.findByRole('button', {
+      name: /New version available: v1\.0\.0-rc\.36/,
     })
-    expect(within(trigger).getByText('Unknown version')).toBeInTheDocument()
+    expect(within(trigger).getByText('Update available')).toBeInTheDocument()
     await waitFor(() => expect(trigger).toHaveAttribute('aria-busy', 'false'))
     expect(
-      within(trigger).queryByText('Update available')
+      within(trigger).queryByText('Unknown version')
     ).not.toBeInTheDocument()
   })
 
-  test('retains the version after a failed check and exposes the error in its tooltip and details', async () => {
+  test('shows a failed-check label and exposes the error in its tooltip and details', async () => {
     const user = userEvent.setup()
     fetchMock.mockResolvedValue(new Response('', { status: 429 }))
     render(<SystemUpdateAction presentation='version' />, { wrapper: Wrapper })
     const trigger = await screen.findByRole('button', {
-      name: /System updates, current version: v1\.0\.0-rc\.35.*Failed to check for updates/s,
+      name: 'System updates: Failed to check for updates',
     })
-    expect(within(trigger).getByText('v1.0.0-rc.35')).toBeInTheDocument()
+    expect(
+      within(trigger).getByText('Failed to check for updates')
+    ).toBeInTheDocument()
     expect(trigger).toHaveAttribute(
       'title',
       expect.stringContaining('Failed to check for updates')
@@ -429,15 +433,18 @@ describe('version label presentation', () => {
     ).toBeInTheDocument()
   })
 
-  test('keeps a long version accessible in the tooltip while constraining its visible label', async () => {
+  test('keeps the status label accessible in the tooltip while constraining its visible label', async () => {
     const version = 'v1.0.0+long-build-metadata-for-a-custom-deployment'
     client.setQueryData(STATUS_QUERY_KEY, { version })
     render(<SystemUpdateAction presentation='version' />, { wrapper: Wrapper })
-    const trigger = screen.getByRole('button', {
-      name: `System updates, current version: ${version}`,
+    const trigger = await screen.findByRole('button', {
+      name: 'System updates: Up to date',
     })
-    expect(trigger).toHaveAttribute('title', expect.stringContaining(version))
-    expect(within(trigger).getByText(version)).toHaveClass(
+    expect(trigger).toHaveAttribute(
+      'title',
+      expect.stringContaining('Up to date')
+    )
+    expect(within(trigger).getByText('Up to date')).toHaveClass(
       'truncate',
       'max-w-32',
       'hidden',
