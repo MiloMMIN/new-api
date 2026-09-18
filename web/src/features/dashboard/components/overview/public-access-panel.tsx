@@ -51,7 +51,11 @@ const FARM_CONFIG_QUERY_KEY = ['dashboard', 'farm-access']
 
 async function fetchTunnel(): Promise<TunnelStatus | null> {
   const res = await api.get('/api/farmctl/tunnel')
-  return res.data as TunnelStatus
+  const data = res.data as Partial<TunnelStatus> | null
+  if (typeof data?.available !== 'boolean' || typeof data.state !== 'string') {
+    return null
+  }
+  return data as TunnelStatus
 }
 
 async function fetchFarmConfig(): Promise<FarmGatewayConfig> {
