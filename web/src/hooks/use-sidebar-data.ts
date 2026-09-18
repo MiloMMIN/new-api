@@ -26,7 +26,6 @@ import {
   Key,
   LayoutDashboard,
   ListTodo,
-  MessageSquare,
   PlugZap,
   Radio,
   ServerCog,
@@ -62,11 +61,11 @@ export function useSidebarData(): SidebarData {
             url: '/playground',
             icon: FlaskConical,
           },
-          {
-            title: t('Chat'),
-            icon: MessageSquare,
-            type: 'chat-presets',
-          },
+          // {
+          //   title: t('Chat'),
+          //   icon: MessageSquare,
+          //   type: 'chat-presets',
+          // },
         ],
       },
       {
