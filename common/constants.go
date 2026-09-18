@@ -125,6 +125,10 @@ var TelegramBotName = ""
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
+
+// AffiliateEnabled 推荐功能总开关：关闭时不解析邀请码、不发放邀请奖励，
+// 并停用 /api/user/aff 与 /api/user/aff_transfer 接口（前端通过 status 隐藏入口）。
+var AffiliateEnabled = false
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
