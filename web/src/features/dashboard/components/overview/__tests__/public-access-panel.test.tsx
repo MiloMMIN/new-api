@@ -100,6 +100,15 @@ describe('PublicAccessPanel', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows unreachable when the tunnel response is not a status payload', async () => {
+    mockApis({
+      tunnel: { success: false, message: 'farm unreachable' },
+    })
+    renderPanel()
+    expect(await screen.findByText('Farm manager unreachable')).toBeInTheDocument()
+    expect(screen.queryByText('Requires Docker deployment')).not.toBeInTheDocument()
+  })
+
   it('hides the public url row when farm reports none', async () => {
     mockApis({
       tunnel: { available: true, state: 'stopped', token_set: true },
