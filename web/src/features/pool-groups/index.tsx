@@ -65,6 +65,7 @@ export function PoolGroups() {
       id: item.id,
       name: item.name,
       group: item.group || '',
+      priority: item.priority ?? undefined,
     }))
   }, [channelsQuery.data])
 

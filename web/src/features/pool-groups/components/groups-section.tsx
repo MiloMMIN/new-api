@@ -16,14 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { BadgeListCell } from '@/components/data-table'
 import { StaticDataTable } from '@/components/data-table/static/static-data-table'
-import { StatusBadge } from '@/components/status-badge'
+import { MultiSelect } from '@/components/multi-select'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -34,6 +35,7 @@ import {
 } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { updateChannel } from '@/features/channels/api'
 import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
 
 import {
@@ -54,6 +56,7 @@ export type ChannelRef = {
   id: number
   name: string
   group: string
+  priority?: number
 }
 
 type GroupsSectionProps = {
@@ -62,29 +65,46 @@ type GroupsSectionProps = {
   channels: ChannelRef[]
 }
 
+function channelGroups(channel: ChannelRef): string[] {
+  return (channel.group || '')
+    .split(',')
+    .map((g) => g.trim())
+    .filter(Boolean)
+}
+
 function channelsForPool(channels: ChannelRef[], pool: string) {
   if (!pool) return []
-  return channels.filter((channel) =>
-    (channel.group || '')
-      .split(',')
-      .map((g) => g.trim())
-      .includes(pool)
-  )
+  return channels.filter((channel) => channelGroups(channel).includes(pool))
 }
 
 export function GroupsSection(props: GroupsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const queryClient = useQueryClient()
   const [rows, setRows] = useState<GroupRow[]>(() =>
     buildRows(props.maps, props.kind)
   )
   const [deleteTarget, setDeleteTarget] = useState<GroupRow | null>(null)
+  const [channelsSaving, setChannelsSaving] = useState(false)
+  // Descriptions live inside UserUsableGroups, so unchecking "selectable"
+  // would otherwise drop the saved text. Cache it per name so toggling back
+  // restores it.
+  const descCache = useRef<Record<string, string>>({})
 
   // Rebuild rows when the underlying option maps change (e.g. after a save
   // round-trip or an external edit). Text inputs commit on blur, so a refetch
   // while typing is not expected.
   useEffect(() => {
-    setRows(buildRows(props.maps, props.kind))
+    for (const [name, desc] of Object.entries(props.maps.usableGroups)) {
+      descCache.current[name] = desc
+    }
+    setRows(
+      buildRows(props.maps, props.kind).map((row) =>
+        !row.selectable && row.name in descCache.current
+          ? { ...row, description: descCache.current[row.name] }
+          : row
+      )
+    )
   }, [props.maps, props.kind])
 
   const isPool = props.kind === 'pool'
@@ -115,7 +135,10 @@ export function GroupsSection(props: GroupsSectionProps) {
         })
       )
     }
-    if (props.kind === 'user' && next.TopupGroupRatio !== base.TopupGroupRatio) {
+    if (
+      props.kind === 'user' &&
+      next.TopupGroupRatio !== base.TopupGroupRatio
+    ) {
       jobs.push(
         updateOption.mutateAsync({
           key: 'TopupGroupRatio',
@@ -154,6 +177,56 @@ export function GroupsSection(props: GroupsSectionProps) {
 
   const removeRow = (row: GroupRow) => {
     commitRows(rows.filter((item) => item._id !== row._id))
+  }
+
+  // Toggle channel membership for a pool: `selectedIds` are the channels that
+  // should carry this pool tag afterwards. Each changed channel gets a
+  // partial {id, group} patch; the backend rebuilds routing abilities.
+  const updatePoolChannels = async (
+    poolName: string,
+    selectedIds: string[]
+  ) => {
+    const pool = poolName.trim()
+    if (!pool) return
+    const wanted = new Set(selectedIds.map(Number))
+    const changed = props.channels.filter(
+      (channel) =>
+        channelGroups(channel).includes(pool) !== wanted.has(channel.id)
+    )
+    if (changed.length === 0) return
+
+    setChannelsSaving(true)
+    const failures: string[] = []
+    try {
+      await Promise.all(
+        changed.map(async (channel) => {
+          const groups = channelGroups(channel)
+          const next = wanted.has(channel.id)
+            ? [...groups, pool]
+            : groups.filter((g) => g !== pool)
+          // Empty group falls back to 'default' like the channel form does —
+          // and the backend patch skips zero values, so '' would never persist.
+          try {
+            const res = await updateChannel(channel.id, {
+              group: next.join(',') || 'default',
+            })
+            if (!res.success) failures.push(channel.name)
+          } catch {
+            failures.push(channel.name)
+          }
+        })
+      )
+    } finally {
+      setChannelsSaving(false)
+      await queryClient.invalidateQueries({ queryKey: ['channels'] })
+    }
+    if (failures.length > 0) {
+      toast.error(
+        t('Failed to update channels: {{names}}', {
+          names: failures.join(', '),
+        })
+      )
+    }
   }
 
   const duplicateNames = (() => {
@@ -271,53 +344,72 @@ export function GroupsSection(props: GroupsSectionProps) {
               id: 'description',
               header: t('Description'),
               className: 'min-w-48',
-              cell: (row) =>
-                row.selectable ? (
+              cell: (row) => {
+                if (row.selectable) {
+                  return (
+                    <Input
+                      value={row.description}
+                      placeholder={t('Group description')}
+                      onChange={(event) =>
+                        updateRow(
+                          row._id,
+                          'description',
+                          event.target.value,
+                          false
+                        )
+                      }
+                      onBlur={() => commitRows(rows)}
+                    />
+                  )
+                }
+                if (!row.description) {
+                  return (
+                    <span className='text-muted-foreground px-3 text-sm'>
+                      -
+                    </span>
+                  )
+                }
+                return (
                   <Input
                     value={row.description}
-                    placeholder={t('Group description')}
-                    onChange={(event) =>
-                      updateRow(
-                        row._id,
-                        'description',
-                        event.target.value,
-                        false
-                      )
-                    }
-                    onBlur={() => commitRows(rows)}
+                    disabled
+                    title={t(
+                      'Description is kept and will be used when the group is user selectable again'
+                    )}
                   />
-                ) : (
-                  <span className='text-muted-foreground px-3 text-sm'>-</span>
-                ),
+                )
+              },
             },
             ...(isPool
               ? [
                   {
                     id: 'channels',
                     header: t('Channels'),
-                    className: 'min-w-48',
+                    className: 'min-w-56',
                     cell: (row: GroupRow) => {
-                      const attached = channelsForPool(
-                        props.channels,
-                        row.name.trim()
-                      )
-                      if (attached.length === 0) {
-                        return (
-                          <span className='text-muted-foreground px-3 text-sm'>
-                            -
-                          </span>
-                        )
-                      }
+                      const pool = row.name.trim()
+                      const attached = channelsForPool(props.channels, pool)
                       return (
-                        <BadgeListCell
-                          items={attached.map((channel) => (
-                            <StatusBadge
-                              key={channel.id}
-                              label={channel.name}
-                              autoColor={channel.name}
-                              size='sm'
-                            />
-                          ))}
+                        <MultiSelect
+                          options={props.channels.map((channel) => ({
+                            value: String(channel.id),
+                            label: channel.name,
+                            hint:
+                              channel.priority !== undefined
+                                ? t('Priority {{value}}', {
+                                    value: channel.priority,
+                                  })
+                                : undefined,
+                          }))}
+                          selected={attached.map((channel) =>
+                            String(channel.id)
+                          )}
+                          onChange={(ids) => {
+                            void updatePoolChannels(pool, ids)
+                          }}
+                          placeholder={t('Select channels')}
+                          maxVisibleChips={2}
+                          disabled={!pool || channelsSaving}
                         />
                       )
                     },
