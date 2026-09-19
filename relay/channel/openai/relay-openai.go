@@ -134,6 +134,12 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			}
 
 			lastStreamData = data
+			var errorResp dto.OpenAITextResponse
+			if err := common.UnmarshalJsonStr(data, &errorResp); err == nil {
+				if oaiError := errorResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
+					sr.Error(types.WithOpenAIError(*oaiError, resp.StatusCode))
+				}
+			}
 			observeStreamChoices(info, data, seenStreamToolCalls, &streamFunctionCallNames)
 			if err := processTokenData(info, data, &responseTextBuilder, &toolCount); err != nil {
 				logger.LogError(c, "error processing stream token data: "+err.Error())
