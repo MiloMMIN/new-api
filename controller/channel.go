@@ -1271,24 +1271,39 @@ func UpdateChannel(c *gin.Context) {
 	// {group: [models]} sets the allowlist, {group: null} removes it. Entries
 	// for other groups on the same channel are preserved.
 	if rawGroupModels, ok := requestData["group_models"]; ok {
-		// Patch on top of the setting this request carries when `setting` is
-		// provided (including an intentionally empty one); otherwise patch
-		// onto the stored setting.
-		merged := originChannel.GetSetting()
 		if _, provided := requestData["setting"]; provided {
-			merged = dto.ChannelSettings{}
+			// `setting` in the request is the merge base (including an
+			// intentionally empty one); the normal update writes it as a
+			// whole field, so no read-modify-write race exists here.
+			merged := dto.ChannelSettings{}
 			if channel.Setting != nil && *channel.Setting != "" {
 				_ = common.Unmarshal([]byte(*channel.Setting), &merged)
 			}
-		}
-		if err := applyGroupModelsPatch(&merged, rawGroupModels); err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": err.Error(),
+			if err := applyGroupModelsPatch(&merged, rawGroupModels); err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
+			}
+			channel.SetSetting(merged)
+		} else {
+			// The merge base is the stored setting: patch it with a
+			// compare-and-swap so concurrent pool edits on the same channel
+			// cannot lose each other's entries. The struct update below
+			// leaves the setting column alone (channel.Setting stays nil),
+			// and its reload picks up the merged value for ability rebuilds.
+			err := model.UpdateChannelSettingCAS(channel.Id, func(settings *dto.ChannelSettings) error {
+				return applyGroupModelsPatch(settings, rawGroupModels)
 			})
-			return
+			if err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
+			}
 		}
-		channel.SetSetting(merged)
 	}
 	err = channel.Update()
 	if err != nil {

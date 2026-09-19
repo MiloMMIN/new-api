@@ -1067,6 +1067,53 @@ func (channel *Channel) GetSetting() dto.ChannelSettings {
 	return setting
 }
 
+// UpdateChannelSettingCAS applies a read-modify-write to channel.Setting with
+// optimistic concurrency: each attempt re-reads the stored value, applies
+// `apply` on top of it, and writes only if the column still matches what was
+// read. A merge producing the already-stored JSON is a no-op success. Fails
+// after a few attempts when the setting keeps changing under it, so callers
+// should surface a "please retry" error rather than silently losing updates.
+func UpdateChannelSettingCAS(channelId int, apply func(settings *dto.ChannelSettings) error) error {
+	for attempt := 0; attempt < 3; attempt++ {
+		var stored Channel
+		if err := DB.Select("id", "setting").First(&stored, channelId).Error; err != nil {
+			return err
+		}
+		settings := dto.ChannelSettings{}
+		if stored.Setting != nil && *stored.Setting != "" {
+			_ = common.Unmarshal([]byte(*stored.Setting), &settings)
+		}
+		if err := apply(&settings); err != nil {
+			return err
+		}
+		mergedBytes, err := common.Marshal(settings)
+		if err != nil {
+			return err
+		}
+		oldSetting := ""
+		if stored.Setting != nil {
+			oldSetting = *stored.Setting
+		}
+		if string(mergedBytes) == oldSetting {
+			return nil // already up to date; also avoids a no-change UPDATE
+		}
+		query := DB.Model(&Channel{}).Where("id = ?", channelId)
+		if oldSetting == "" {
+			query = query.Where("(setting IS NULL OR setting = '')")
+		} else {
+			query = query.Where("setting = ?", oldSetting)
+		}
+		res := query.Update("setting", string(mergedBytes))
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 1 {
+			return nil
+		}
+	}
+	return errors.New("channel setting was modified concurrently; please retry")
+}
+
 func (channel *Channel) SetSetting(setting dto.ChannelSettings) {
 	settingBytes, err := common.Marshal(setting)
 	if err != nil {
