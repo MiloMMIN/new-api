@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2 } from 'lucide-react'
+import { Lock, LockOpen, Plus, Trash2, WandSparkles } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -47,8 +47,10 @@ import {
   poolModelFilter,
   poolModelFilterPatch,
   poolUserAccess,
+  poolVendor,
   serializeMaps,
   unionChannelModels,
+  vendorGroups,
   userGroupNames,
   type GroupKind,
   type GroupMaps,
@@ -105,6 +107,9 @@ export function GroupsSection(props: GroupsSectionProps) {
   const [channelsSaving, setChannelsSaving] = useState(false)
   const [modelsSaving, setModelsSaving] = useState(false)
   const [accessSaving, setAccessSaving] = useState(false)
+  const [bulkMatching, setBulkMatching] = useState(false)
+  // UI-only guard: locked pools are skipped by the bulk vendor-match action.
+  const [lockedPools, setLockedPools] = useState<Set<string>>(new Set())
   // Descriptions live inside UserUsableGroups, so unchecking "selectable"
   // would otherwise drop the saved text. Cache it per name so toggling back
   // restores it.
@@ -248,37 +253,116 @@ export function GroupsSection(props: GroupsSectionProps) {
     }
   }
 
-  // Write a per-pool model filter to every channel carrying the pool tag.
-  // The backend intersects it with each channel's declared models, so one
-  // shared list is safe across heterogeneous members. 'all' clears both
-  // allow and deny entries and restores unrestricted serving.
+  const togglePoolLock = (poolName: string) => {
+    const name = poolName.trim()
+    if (!name) return
+    setLockedPools((current) => {
+      const next = new Set(current)
+      if (next.has(name)) {
+        next.delete(name)
+      } else {
+        next.add(name)
+      }
+      return next
+    })
+  }
+
+  // Write a per-pool model filter to every channel carrying the pool tag and
+  // return the names of channels whose patch failed. The backend intersects
+  // the filter with each channel's declared models, so one shared list is
+  // safe across heterogeneous members.
+  const applyPoolFilterToChannels = async (
+    pool: string,
+    filter: PoolModelFilter
+  ): Promise<string[]> => {
+    const { allow, deny } = poolModelFilterPatch(pool, filter)
+    const failures: string[] = []
+    await Promise.all(
+      channelsForPool(props.channels, pool).map(async (channel) => {
+        try {
+          const res = await patchChannelModelFilter(channel.id, allow, deny)
+          if (!res.success) failures.push(channel.name)
+        } catch {
+          failures.push(channel.name)
+        }
+      })
+    )
+    return failures
+  }
+
+  // 'all' clears both allow and deny entries and restores unrestricted
+  // serving.
   const updatePoolModelFilter = async (
     poolName: string,
     filter: PoolModelFilter
   ) => {
     const pool = poolName.trim()
     if (!pool) return
-    const attached = channelsForPool(props.channels, pool)
-    if (attached.length === 0) return
-    const { allow, deny } = poolModelFilterPatch(pool, filter)
+    if (channelsForPool(props.channels, pool).length === 0) return
 
     setModelsSaving(true)
-    const failures: string[] = []
-    try {
-      await Promise.all(
-        attached.map(async (channel) => {
-          try {
-            const res = await patchChannelModelFilter(channel.id, allow, deny)
-            if (!res.success) failures.push(channel.name)
-          } catch {
-            failures.push(channel.name)
-          }
+    const failures = await applyPoolFilterToChannels(pool, filter)
+    setModelsSaving(false)
+    setModelsTarget(null)
+    await queryClient.invalidateQueries({ queryKey: ['channels'] })
+    if (failures.length > 0) {
+      toast.error(
+        t('Failed to update channels: {{names}}', {
+          names: failures.join(', '),
         })
       )
+    }
+  }
+
+  // Bulk vendor matching: every unlocked pool whose name matches a vendor
+  // present in its member channels gets a whitelist of exactly that vendor's
+  // models. Pools already holding that whitelist and pools without a vendor
+  // match are skipped. Sequential per pool so pools sharing a channel don't
+  // race each other's setting patch.
+  const matchAllVendors = async () => {
+    setBulkMatching(true)
+    const failures: string[] = []
+    let applied = 0
+    try {
+      for (const row of rows) {
+        const pool = row.name.trim()
+        if (!pool || lockedPools.has(pool)) continue
+        const attached = channelsForPool(props.channels, pool)
+        if (attached.length === 0) continue
+        const options = unionChannelModels(
+          attached.map((channel) => channel.models)
+        )
+        const vendor = poolVendor(pool, options)
+        if (!vendor) continue
+        const target =
+          vendorGroups(options).find((group) => group.vendor === vendor)
+            ?.models ?? []
+        const current = poolModelFilter(attached, pool)
+        const same =
+          current.mode === 'allow' &&
+          current.models.length === target.length &&
+          current.models.every((model) => target.includes(model))
+        if (same) continue
+        const failed = await applyPoolFilterToChannels(pool, {
+          mode: 'allow',
+          models: target,
+        })
+        if (failed.length > 0) {
+          failures.push(...failed)
+        } else {
+          applied += 1
+        }
+      }
     } finally {
-      setModelsSaving(false)
-      setModelsTarget(null)
+      setBulkMatching(false)
       await queryClient.invalidateQueries({ queryKey: ['channels'] })
+    }
+    if (applied > 0) {
+      toast.success(
+        t('Applied vendor match to {{count}} pools', { count: applied })
+      )
+    } else if (failures.length === 0) {
+      toast.info(t('No pools needed vendor matching'))
     }
     if (failures.length > 0) {
       toast.error(
@@ -351,10 +435,24 @@ export function GroupsSection(props: GroupsSectionProps) {
             <CardTitle>{title}</CardTitle>
             <CardDescription>{description}</CardDescription>
           </div>
-          <Button onClick={addRow} size='sm' className='sm:self-start'>
-            <Plus className='mr-2 h-4 w-4' />
-            {isPool ? t('Add pool') : t('Add user group')}
-          </Button>
+          <div className='flex gap-2 sm:self-start'>
+            {isPool && (
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => void matchAllVendors()}
+                disabled={bulkMatching || modelsSaving}
+                title={t('Locked pools are skipped')}
+              >
+                <WandSparkles className='mr-2 h-4 w-4' />
+                {t('Auto-match vendors')}
+              </Button>
+            )}
+            <Button onClick={addRow} size='sm'>
+              <Plus className='mr-2 h-4 w-4' />
+              {isPool ? t('Add pool') : t('Add user group')}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -576,18 +674,41 @@ export function GroupsSection(props: GroupsSectionProps) {
               header: t('Actions'),
               className: 'text-right',
               cellClassName: 'text-right',
-              cell: (row) => (
-                <div className='flex justify-end gap-1'>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    onClick={() => setDeleteTarget(row)}
-                    aria-label={t('Delete')}
-                  >
-                    <Trash2 className='h-4 w-4' />
-                  </Button>
-                </div>
-              ),
+              cell: (row) => {
+                const locked = isPool && lockedPools.has(row.name.trim())
+                return (
+                  <div className='flex justify-end gap-1'>
+                    {isPool && (
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => togglePoolLock(row.name)}
+                        aria-label={locked ? t('Unlock') : t('Lock')}
+                        title={
+                          locked
+                            ? t('Unlock to include in bulk actions')
+                            : t('Lock to skip bulk actions')
+                        }
+                        className={locked ? 'text-primary' : undefined}
+                      >
+                        {locked ? (
+                          <Lock className='h-4 w-4' />
+                        ) : (
+                          <LockOpen className='h-4 w-4' />
+                        )}
+                      </Button>
+                    )}
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={() => setDeleteTarget(row)}
+                      aria-label={t('Delete')}
+                    >
+                      <Trash2 className='h-4 w-4' />
+                    </Button>
+                  </div>
+                )
+              },
             },
           ]}
         />
