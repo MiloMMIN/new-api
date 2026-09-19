@@ -24,6 +24,7 @@ import {
   FileText,
   FlaskConical,
   Key,
+  Layers,
   LayoutDashboard,
   ListTodo,
   PlugZap,
@@ -135,6 +136,11 @@ export function useSidebarData(): SidebarData {
             title: t('Channels'),
             url: '/channels',
             icon: Radio,
+          },
+          {
+            title: t('Pool Groups'),
+            url: '/pool-groups',
+            icon: Layers,
           },
           {
             title: t('Models'),
