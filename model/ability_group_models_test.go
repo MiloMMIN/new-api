@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -121,4 +122,58 @@ func TestInitChannelCacheHonorsGroupModelsAllowlist(t *testing.T) {
 	assert.Contains(t, group2model2channels["kimi"], "model-a")
 	assert.NotContains(t, group2model2channels["kimi"], "model-b")
 	assert.Contains(t, group2model2channels["claude"], "model-b")
+}
+
+func TestUpdateChannelSettingCAS(t *testing.T) {
+	setupAbilitiesTestDB(t)
+	channel := &Channel{
+		Name:   "cas-test",
+		Key:    "sk-x",
+		Status: common.ChannelStatusEnabled,
+		Models: "model-a,model-b",
+		Group:  "kimi,claude",
+	}
+	channel.SetSetting(dto.ChannelSettings{
+		Proxy:       "socks5://keep",
+		GroupModels: map[string][]string{"kimi": {"model-a"}},
+	})
+	require.NoError(t, DB.Create(channel).Error)
+
+	t.Run("merges onto the latest stored value", func(t *testing.T) {
+		require.NoError(t, UpdateChannelSettingCAS(channel.Id, func(s *dto.ChannelSettings) error {
+			if s.GroupModels == nil {
+				s.GroupModels = map[string][]string{}
+			}
+			s.GroupModels["claude"] = []string{"model-b"}
+			return nil
+		}))
+		require.NoError(t, UpdateChannelSettingCAS(channel.Id, func(s *dto.ChannelSettings) error {
+			delete(s.GroupModels, "kimi")
+			return nil
+		}))
+
+		var reloaded Channel
+		require.NoError(t, DB.First(&reloaded, channel.Id).Error)
+		setting := reloaded.GetSetting()
+		assert.Equal(t, "socks5://keep", setting.Proxy)
+		assert.Equal(t, map[string][]string{"claude": {"model-b"}}, setting.GroupModels)
+	})
+
+	t.Run("no-change merge succeeds without writing", func(t *testing.T) {
+		require.NoError(t, UpdateChannelSettingCAS(channel.Id, func(s *dto.ChannelSettings) error {
+			return nil
+		}))
+	})
+
+	t.Run("apply error leaves the stored setting untouched", func(t *testing.T) {
+		want := errors.New("bad patch")
+		err := UpdateChannelSettingCAS(channel.Id, func(s *dto.ChannelSettings) error {
+			return want
+		})
+		require.ErrorIs(t, err, want)
+
+		var reloaded Channel
+		require.NoError(t, DB.First(&reloaded, channel.Id).Error)
+		assert.Equal(t, map[string][]string{"claude": {"model-b"}}, reloaded.GetSetting().GroupModels)
+	})
 }
