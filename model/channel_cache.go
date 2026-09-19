@@ -67,6 +67,14 @@ func InitChannelCache() {
 				newGroup2model2channels[group][model] = append(newGroup2model2channels[group][model], channel.Id)
 			}
 		}
+		// Synthesize the reserved "all" pool: every enabled channel
+		// contributes whatever its all-pool filter leaves.
+		if _, ok := newGroup2model2channels[AllChannelsGroup]; !ok {
+			newGroup2model2channels[AllChannelsGroup] = make(map[string][]int)
+		}
+		for _, model := range channel.GetModelsForGroup(AllChannelsGroup) {
+			newGroup2model2channels[AllChannelsGroup][model] = append(newGroup2model2channels[AllChannelsGroup][model], channel.Id)
+		}
 	}
 
 	// sort by priority
