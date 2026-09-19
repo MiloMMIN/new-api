@@ -935,6 +935,46 @@ export function useChannelsColumns(
         enableSorting: false,
       },
 
+      // Upstream column
+      {
+        accessorKey: 'base_url',
+        header: t('Upstream'),
+        meta: { mobileHidden: true },
+        cell: ({ row }) => {
+          if (isTagAggregateRow(row.original)) {
+            return <span className='text-muted-foreground text-xs'>-</span>
+          }
+          const baseUrl = row.getValue('base_url') as
+            | string
+            | null
+            | undefined
+          if (!baseUrl) {
+            return <span className='text-muted-foreground text-xs'>-</span>
+          }
+          const display = sensitiveVisible ? baseUrl : SENSITIVE_MASK
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <TruncatedText
+                      text={display}
+                      className='text-muted-foreground font-mono text-xs'
+                      maxWidth='max-w-full'
+                    />
+                  }
+                />
+                <TooltipContent side='top'>
+                  <p className='font-mono text-xs'>{display}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )
+        },
+        size: 170,
+        enableSorting: false,
+      },
+
       // Status column
       {
         accessorKey: 'status',
