@@ -36,7 +36,7 @@ const ANNOUNCEMENTS = [
   },
 ]
 
-function mockApis() {
+function mockApis(announcements: unknown[] = ANNOUNCEMENTS) {
   vi.spyOn(api, 'get').mockImplementation(async (url) => {
     if (url === '/api/status') {
       return {
@@ -44,7 +44,7 @@ function mockApis() {
           success: true,
           data: {
             announcements_enabled: true,
-            announcements: ANNOUNCEMENTS,
+            announcements,
           },
         },
       }
@@ -91,6 +91,14 @@ describe('AnnouncementsPanel admin editing', () => {
     expect(screen.queryByText('Add')).not.toBeInTheDocument()
   })
 
+  it('keeps the add button visible for admins when the list is empty', async () => {
+    mockApis([])
+    renderPanel(true)
+    const addBtn = await screen.findByText('Add')
+    await userEvent.click(addBtn)
+    expect(await screen.findByText('Add Announcement')).toBeInTheDocument()
+  })
+
   it('shows an add button for admins and opens the edit dialog', async () => {
     mockApis()
     renderPanel(true)
@@ -103,9 +111,7 @@ describe('AnnouncementsPanel admin editing', () => {
     mockApis()
     renderPanel(true)
     await userEvent.click(await screen.findByText('Maintenance tonight'))
-    expect(
-      await screen.findByText('Announcement Details')
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Announcement Details')).toBeInTheDocument()
     expect(screen.getByText('Edit')).toBeInTheDocument()
     expect(screen.getByText('Delete')).toBeInTheDocument()
   })
