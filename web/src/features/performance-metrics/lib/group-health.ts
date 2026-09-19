@@ -28,11 +28,42 @@ export const GROUP_WINDOW_HOURS = 24
 // Per-model group data is merged across the top-traffic models; the summary
 // endpoint already returns models sorted by request volume.
 const MODEL_SAMPLE_LIMIT = 8
-const SERIES_SQUARE_LIMIT = 48
+const HOUR_MS = 3_600_000
 
-export type GroupSeriesSquare = {
+/**
+ * Fold raw per-model series points into one hour-aligned slot per trailing
+ * hour, newest on the right. Hours without any sample become null slots so
+ * the uptime strip renders a continuous timeline (gray gaps).
+ */
+function buildSlots(
+  byTs: Map<number, { sum: number; count: number }>
+): GroupStatusSlot[] {
+  const byHour = new Map<number, { sum: number; count: number }>()
+  for (const [ts, cell] of byTs) {
+    const hour = Math.floor(ts / 3600)
+    const agg = byHour.get(hour) ?? { sum: 0, count: 0 }
+    agg.sum += cell.sum
+    agg.count += cell.count
+    byHour.set(hour, agg)
+  }
+  const nowHour = Math.floor(Date.now() / HOUR_MS)
+  const slots: GroupStatusSlot[] = []
+  for (let i = GROUP_WINDOW_HOURS - 1; i >= 0; i--) {
+    const hour = nowHour - i
+    const agg = byHour.get(hour)
+    slots.push({
+      ts: hour * 3600,
+      successRate: agg ? agg.sum / agg.count : null,
+    })
+  }
+  return slots
+}
+
+/** One fixed-width hour slot of the trailing window; null = no traffic. */
+export type GroupStatusSlot = {
+  /** hour-aligned unix seconds */
   ts: number
-  successRate: number
+  successRate: number | null
 }
 
 export type GroupHealthItem = {
@@ -43,7 +74,7 @@ export type GroupHealthItem = {
   ttftMs: number | null
   latencyMs: number | null
   tps: number | null
-  series: GroupSeriesSquare[]
+  slots: GroupStatusSlot[]
 }
 
 type GroupBucket = {
@@ -117,26 +148,24 @@ export async function fetchGroupHealth(): Promise<GroupHealthItem[]> {
   }
 
   const names = new Set([...Object.keys(meta), ...buckets.keys()])
-  const items = [...names].map((name) => {
-    const bucket = buckets.get(name)
-    const info = meta[name]
-    const series = bucket
-      ? [...bucket.byTs.entries()]
-          .sort((a, b) => a[0] - b[0])
-          .map(([ts, cell]) => ({ ts, successRate: cell.sum / cell.count }))
-          .slice(-SERIES_SQUARE_LIMIT)
-      : []
-    return {
-      name,
-      desc: info?.desc ?? '',
-      ratio: info?.ratio,
-      successRate: bucket ? meanOrNull(bucket.successRates) : null,
-      ttftMs: bucket ? meanOrNull(bucket.ttfts) : null,
-      latencyMs: bucket ? meanOrNull(bucket.latencies) : null,
-      tps: bucket ? meanOrNull(bucket.tpsList) : null,
-      series,
-    }
-  })
+  const items = [...names]
+    // Pools only: entries flagged as user (topup) groups are account
+    // pricing tiers, not channel pools.
+    .filter((name) => meta[name]?.user_group !== true)
+    .map((name) => {
+      const bucket = buckets.get(name)
+      const info = meta[name]
+      return {
+        name,
+        desc: info?.desc ?? '',
+        ratio: info?.ratio,
+        successRate: bucket ? meanOrNull(bucket.successRates) : null,
+        ttftMs: bucket ? meanOrNull(bucket.ttfts) : null,
+        latencyMs: bucket ? meanOrNull(bucket.latencies) : null,
+        tps: bucket ? meanOrNull(bucket.tpsList) : null,
+        slots: buildSlots(bucket?.byTs ?? new Map()),
+      }
+    })
   // Groups with live metrics first (best performing on top), then the rest.
   items.sort((a, b) => (b.successRate ?? -1) - (a.successRate ?? -1))
   return items

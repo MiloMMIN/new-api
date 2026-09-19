@@ -28,7 +28,7 @@ import {
   formatLatency,
   formatThroughput,
   formatUptimePct,
-  getSuccessRateDotClass,
+  getSlotDotClass,
   getSuccessRateLevel,
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
@@ -117,23 +117,21 @@ export function GroupHealthCard(props: { item: GroupHealthItem }) {
         </div>
       )}
 
-      <div className='mt-2 flex flex-wrap gap-[3px]' aria-hidden='true'>
-        {item.series.length > 0 ? (
-          item.series.map((point) => (
-            <span
-              key={point.ts}
-              className={cn(
-                'size-2 rounded-[2px]',
-                getSuccessRateDotClass(point.successRate)
-              )}
-              title={`${new Date(point.ts * 1000).toLocaleString()} · ${formatUptimePct(point.successRate)}`}
-            />
-          ))
-        ) : (
-          <span className='text-muted-foreground text-[11px]'>
-            {t('No data')}
-          </span>
-        )}
+      <div className='mt-2 flex gap-[3px]' aria-hidden='true'>
+        {item.slots.map((slot) => (
+          <span
+            key={slot.ts}
+            className={cn(
+              'h-2.5 min-w-1 flex-1 rounded-[2px]',
+              getSlotDotClass(slot.successRate)
+            )}
+            title={
+              slot.successRate != null
+                ? `${new Date(slot.ts * 1000).toLocaleString()} · ${formatUptimePct(slot.successRate)}`
+                : `${new Date(slot.ts * 1000).toLocaleString()} · ${t('No data')}`
+            }
+          />
+        ))}
       </div>
 
       <div className='text-muted-foreground mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]'>

@@ -93,6 +93,17 @@ export function getSuccessRateDotClass(rate: number): string {
   return SUCCESS_RATE_DOT_CLASS[getSuccessRateLevel(rate)]
 }
 
+/**
+ * Uptime-strip square color: green when the slot's success rate is healthy
+ * (>= 90%), red when degraded, gray when the slot saw no traffic.
+ */
+export function getSlotDotClass(rate: number | null): string {
+  if (rate == null) return 'bg-muted-foreground/25'
+  const level = getSuccessRateLevel(rate)
+  if (level === 'excellent' || level === 'good') return 'bg-emerald-500'
+  return 'bg-red-500'
+}
+
 export function getSuccessRateColor(rate: number): string {
   return SUCCESS_RATE_HEX_COLOR[getSuccessRateLevel(rate)]
 }

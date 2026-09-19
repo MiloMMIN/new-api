@@ -87,12 +87,12 @@ export function GroupMonitorPanel(props: { className?: string }) {
             <Activity />
           </IconBadge>
           <span className='truncate text-sm font-semibold'>
-            {t('Group Monitor')}
+            {t('Pool Monitor')}
           </span>
         </div>
         <div className='flex shrink-0 items-center gap-1'>
           <span className='text-muted-foreground text-xs'>
-            {t('{{count}} monitors', { count: items.length })}
+            {t('{{count}} pools', { count: items.length })}
           </span>
           <Button
             variant='ghost'
