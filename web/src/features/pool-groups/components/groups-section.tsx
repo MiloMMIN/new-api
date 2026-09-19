@@ -94,6 +94,34 @@ function channelsForPool(channels: ChannelRef[], pool: string) {
   return channels.filter((channel) => channelGroups(channel).includes(pool))
 }
 
+const LOCKED_POOLS_KEY = 'pool_groups_locked'
+
+// Locked pools survive reloads so a deliberate lock stays effective until
+// the admin unlocks it — the lock is a guard against bulk vendor matching,
+// not a transient dialog state.
+function readLockedPools(): Set<string> {
+  try {
+    const raw = localStorage.getItem(LOCKED_POOLS_KEY)
+    if (!raw) return new Set()
+    const list: unknown = JSON.parse(raw)
+    return new Set(
+      Array.isArray(list)
+        ? list.filter((v): v is string => typeof v === 'string')
+        : []
+    )
+  } catch {
+    return new Set()
+  }
+}
+
+function writeLockedPools(locked: Set<string>) {
+  try {
+    localStorage.setItem(LOCKED_POOLS_KEY, JSON.stringify([...locked]))
+  } catch {
+    /* ignore */
+  }
+}
+
 export function GroupsSection(props: GroupsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -108,8 +136,9 @@ export function GroupsSection(props: GroupsSectionProps) {
   const [modelsSaving, setModelsSaving] = useState(false)
   const [accessSaving, setAccessSaving] = useState(false)
   const [bulkMatching, setBulkMatching] = useState(false)
-  // UI-only guard: locked pools are skipped by the bulk vendor-match action.
-  const [lockedPools, setLockedPools] = useState<Set<string>>(new Set())
+  // Locked pools are skipped by the bulk vendor-match action; the set
+  // persists in localStorage so a lock stays until explicitly unlocked.
+  const [lockedPools, setLockedPools] = useState<Set<string>>(readLockedPools)
   // Descriptions live inside UserUsableGroups, so unchecking "selectable"
   // would otherwise drop the saved text. Cache it per name so toggling back
   // restores it.
@@ -263,6 +292,7 @@ export function GroupsSection(props: GroupsSectionProps) {
       } else {
         next.add(name)
       }
+      writeLockedPools(next)
       return next
     })
   }
