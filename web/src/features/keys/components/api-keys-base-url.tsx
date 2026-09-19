@@ -20,11 +20,11 @@ import { Globe } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
-import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
+import { useServerAddress } from '@/hooks/use-server-address'
 
 export function ApiKeysBaseUrl() {
   const { t } = useTranslation()
-  const { serverAddress } = useChatPresets()
+  const serverAddress = useServerAddress()
 
   if (!serverAddress) return null
 
