@@ -27,7 +27,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
-import type { PoolModelFilter, PoolModelMode } from '../lib'
+import {
+  poolVendor,
+  vendorGroups,
+  type PoolModelFilter,
+  type PoolModelMode,
+} from '../lib'
 
 type PoolModelsDialogProps = {
   open: boolean
@@ -110,6 +115,28 @@ export function PoolModelsDialog(props: PoolModelsDialogProps) {
     if (!name) return
     setSelected((current) => new Set(current).add(name))
     setManual('')
+  }
+
+  const vendors = useMemo(() => vendorGroups(props.options), [props.options])
+
+  const matchedVendor = useMemo(
+    () => poolVendor(props.poolName, props.options),
+    [props.poolName, props.options]
+  )
+
+  const toggleVendor = (models: string[]) => {
+    setSelected((current) => {
+      const next = new Set(current)
+      const allSelected = models.every((model) => next.has(model))
+      for (const model of models) {
+        if (allSelected) {
+          next.delete(model)
+        } else {
+          next.add(model)
+        }
+      }
+      return next
+    })
   }
 
   const filtering = mode !== 'all'
@@ -203,6 +230,46 @@ export function PoolModelsDialog(props: PoolModelsDialogProps) {
                 {t('Clear')}
               </Button>
             </div>
+
+            {vendors.length > 0 && (
+              <div className='flex flex-wrap items-center gap-1.5'>
+                <span className='text-muted-foreground text-xs'>
+                  {t('By vendor')}
+                </span>
+                {vendors.map((group) => {
+                  const picked = group.models.filter((model) =>
+                    selected.has(model)
+                  ).length
+                  const allPicked = picked === group.models.length
+                  return (
+                    <Button
+                      key={group.vendor}
+                      variant={allPicked ? 'secondary' : 'outline'}
+                      size='sm'
+                      className='h-7 px-2 text-xs'
+                      onClick={() => toggleVendor(group.models)}
+                    >
+                      {group.vendor} {picked}/{group.models.length}
+                    </Button>
+                  )
+                })}
+                {matchedVendor && (
+                  <Button
+                    variant='default'
+                    size='sm'
+                    className='h-7 px-2 text-xs'
+                    onClick={() => {
+                      const group = vendors.find(
+                        (item) => item.vendor === matchedVendor
+                      )
+                      if (group) setSelected(new Set(group.models))
+                    }}
+                  >
+                    {t('Match {{vendor}}', { vendor: matchedVendor })}
+                  </Button>
+                )}
+              </div>
+            )}
 
             <div className='text-muted-foreground text-xs'>
               {t('{{count}} selected', { count: selected.size })}

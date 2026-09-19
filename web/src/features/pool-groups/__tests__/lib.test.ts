@@ -24,13 +24,16 @@ import {
   buildRows,
   channelGroupModels,
   isManagedName,
+  modelVendor,
   parseGroupMaps,
   poolModelFilter,
   poolModelFilterPatch,
   poolUserAccess,
+  poolVendor,
   serializeMaps,
   unionChannelModels,
   userGroupNames,
+  vendorGroups,
   type GroupMaps,
   type GroupRow,
 } from '../lib'
@@ -409,5 +412,53 @@ describe('applyPoolUserAccess', () => {
       vip: { enabled: true, ratio: '0.5' },
     })
     expect(next.specialUsable.svip['+:claude']).toBe('svip 专属')
+  })
+})
+
+describe('modelVendor', () => {
+  it('takes the lowercase segment before the first dash', () => {
+    expect(modelVendor('kimi-k3')).toBe('kimi')
+    expect(modelVendor('claude-opus-4-6-thinking')).toBe('claude')
+    expect(modelVendor('GPT-5')).toBe('gpt')
+    expect(modelVendor('o3')).toBe('o3')
+    expect(modelVendor('  kimi-k2  '.trim())).toBe('kimi')
+  })
+})
+
+describe('vendorGroups', () => {
+  it('groups models by vendor prefix and sorts vendors', () => {
+    const groups = vendorGroups([
+      'kimi-k3',
+      'claude-opus-4-6',
+      'kimi-k2',
+      'gpt-5',
+      'claude-sonnet-4-5',
+    ])
+    expect(groups.map((group) => group.vendor)).toEqual([
+      'claude',
+      'gpt',
+      'kimi',
+    ])
+    expect(groups[0].models).toEqual(['claude-opus-4-6', 'claude-sonnet-4-5'])
+    expect(groups[2].models).toEqual(['kimi-k2', 'kimi-k3'])
+  })
+
+  it('returns an empty list for no models', () => {
+    expect(vendorGroups([])).toEqual([])
+  })
+})
+
+describe('poolVendor', () => {
+  const options = ['kimi-k3', 'claude-opus-4-6', 'gpt-5']
+
+  it('matches a pool name to a vendor present in the options', () => {
+    expect(poolVendor('kimi', options)).toBe('kimi')
+    expect(poolVendor('Claude', options)).toBe('claude')
+  })
+
+  it('returns null when no model carries that vendor', () => {
+    expect(poolVendor('deepseek', options)).toBeNull()
+    expect(poolVendor('misc', options)).toBeNull()
+    expect(poolVendor('', options)).toBeNull()
   })
 })
