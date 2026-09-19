@@ -315,21 +315,32 @@ func (channel *Channel) GetGroups() []string {
 // are offered under the given routing group. A group_models allowlist in the
 // channel setting narrows the (group, model) pairs emitted into abilities;
 // groups without an entry serve all declared models, while an explicitly
-// empty entry serves none.
+// empty entry serves none. A group_models_deny list then removes the listed
+// models from whatever the allowlist left.
 func (channel *Channel) GetModelsForGroup(group string) []string {
 	models := channel.GetModels()
-	allowed, ok := channel.GetSetting().GroupModels[group]
-	if !ok {
-		return models
+	setting := channel.GetSetting()
+	if allowed, ok := setting.GroupModels[group]; ok {
+		allowedSet := make(map[string]struct{}, len(allowed))
+		for _, model := range allowed {
+			allowedSet[model] = struct{}{}
+		}
+		models = lo.Filter(models, func(model string, _ int) bool {
+			_, ok := allowedSet[model]
+			return ok
+		})
 	}
-	allowedSet := make(map[string]struct{}, len(allowed))
-	for _, model := range allowed {
-		allowedSet[model] = struct{}{}
+	if denied := setting.GroupModelsDeny[group]; len(denied) > 0 {
+		deniedSet := make(map[string]struct{}, len(denied))
+		for _, model := range denied {
+			deniedSet[model] = struct{}{}
+		}
+		models = lo.Filter(models, func(model string, _ int) bool {
+			_, ok := deniedSet[model]
+			return !ok
+		})
 	}
-	return lo.Filter(models, func(model string, _ int) bool {
-		_, ok := allowedSet[model]
-		return ok
-	})
+	return models
 }
 
 func (channel *Channel) GetOtherInfo() map[string]any {

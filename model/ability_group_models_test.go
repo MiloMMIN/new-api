@@ -53,6 +53,32 @@ func TestGetModelsForGroup(t *testing.T) {
 		})
 		assert.Equal(t, []string{"model-a"}, channel.GetModelsForGroup("kimi"))
 	})
+
+	t.Run("denylist removes listed models for its group only", func(t *testing.T) {
+		channel := &Channel{Models: "model-a,model-b,model-c"}
+		channel.SetSetting(dto.ChannelSettings{
+			GroupModelsDeny: map[string][]string{"kimi": {"model-b"}},
+		})
+		assert.Equal(t, []string{"model-a", "model-c"}, channel.GetModelsForGroup("kimi"))
+		assert.Equal(t, []string{"model-a", "model-b", "model-c"}, channel.GetModelsForGroup("claude"))
+	})
+
+	t.Run("denylist applies after the allowlist", func(t *testing.T) {
+		channel := &Channel{Models: "model-a,model-b,model-c"}
+		channel.SetSetting(dto.ChannelSettings{
+			GroupModels:     map[string][]string{"kimi": {"model-a", "model-b"}},
+			GroupModelsDeny: map[string][]string{"kimi": {"model-b"}},
+		})
+		assert.Equal(t, []string{"model-a"}, channel.GetModelsForGroup("kimi"))
+	})
+
+	t.Run("empty denylist changes nothing", func(t *testing.T) {
+		channel := &Channel{Models: "model-a,model-b"}
+		channel.SetSetting(dto.ChannelSettings{
+			GroupModelsDeny: map[string][]string{"kimi": {}},
+		})
+		assert.Equal(t, []string{"model-a", "model-b"}, channel.GetModelsForGroup("kimi"))
+	})
 }
 
 func setupAbilitiesTestDB(t *testing.T) {

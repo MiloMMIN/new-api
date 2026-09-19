@@ -1066,14 +1066,15 @@ type ChannelStatusRequest struct {
 	Status int `json:"status"`
 }
 
-// applyGroupModelsPatch merges a group_models patch into channel settings.
-// The patch maps pool (group) names to model lists; a JSON null value for the
-// whole field clears every allowlist, and null per group removes that group's
-// entry. Entries for groups absent from the patch are preserved. Blank model
-// names are dropped; non-object or non-list values are rejected.
-func applyGroupModelsPatch(settings *dto.ChannelSettings, raw any) error {
+// applyGroupModelsPatch merges a group_models (or group_models_deny) patch
+// into the target map of a channel setting. The patch maps pool (group)
+// names to model lists; a JSON null value for the whole field clears every
+// entry, and null per group removes that group's entry. Entries for groups
+// absent from the patch are preserved. Blank model names are dropped;
+// non-object or non-list values are rejected.
+func applyGroupModelsPatch(target *map[string][]string, field string, raw any) error {
 	if raw == nil {
-		settings.GroupModels = nil
+		*target = nil
 		return nil
 	}
 	rawBytes, err := common.Marshal(raw)
@@ -1082,19 +1083,19 @@ func applyGroupModelsPatch(settings *dto.ChannelSettings, raw any) error {
 	}
 	var patch map[string]json.RawMessage
 	if err := common.Unmarshal(rawBytes, &patch); err != nil {
-		return errors.New("group_models must be an object of group -> model list (or null)")
+		return fmt.Errorf("%s must be an object of group -> model list (or null)", field)
 	}
-	if settings.GroupModels == nil && len(patch) > 0 {
-		settings.GroupModels = make(map[string][]string, len(patch))
+	if *target == nil && len(patch) > 0 {
+		*target = make(map[string][]string, len(patch))
 	}
 	for group, rawList := range patch {
 		if string(rawList) == "null" {
-			delete(settings.GroupModels, group)
+			delete(*target, group)
 			continue
 		}
 		var list []string
 		if err := common.Unmarshal(rawList, &list); err != nil || list == nil {
-			return fmt.Errorf("group_models.%s must be a model list or null", group)
+			return fmt.Errorf("%s.%s must be a model list or null", field, group)
 		}
 		cleaned := list[:0]
 		for _, modelName := range list {
@@ -1102,10 +1103,10 @@ func applyGroupModelsPatch(settings *dto.ChannelSettings, raw any) error {
 				cleaned = append(cleaned, name)
 			}
 		}
-		settings.GroupModels[group] = cleaned
+		(*target)[group] = cleaned
 	}
-	if len(settings.GroupModels) == 0 {
-		settings.GroupModels = nil
+	if len(*target) == 0 {
+		*target = nil
 	}
 	return nil
 }
@@ -1267,10 +1268,25 @@ func UpdateChannel(c *gin.Context) {
 			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
 		}
 	}
-	// group_models is a partial patch over channel.setting.group_models:
-	// {group: [models]} sets the allowlist, {group: null} removes it. Entries
-	// for other groups on the same channel are preserved.
-	if rawGroupModels, ok := requestData["group_models"]; ok {
+	// group_models / group_models_deny are partial patches over the same-named
+	// channel.setting maps: {group: [models]} sets the allow/deny list,
+	// {group: null} removes it. Entries for other groups are preserved.
+	rawAllow, hasAllow := requestData["group_models"]
+	rawDeny, hasDeny := requestData["group_models_deny"]
+	if hasAllow || hasDeny {
+		apply := func(settings *dto.ChannelSettings) error {
+			if hasAllow {
+				if err := applyGroupModelsPatch(&settings.GroupModels, "group_models", rawAllow); err != nil {
+					return err
+				}
+			}
+			if hasDeny {
+				if err := applyGroupModelsPatch(&settings.GroupModelsDeny, "group_models_deny", rawDeny); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 		if _, provided := requestData["setting"]; provided {
 			// `setting` in the request is the merge base (including an
 			// intentionally empty one); the normal update writes it as a
@@ -1279,7 +1295,7 @@ func UpdateChannel(c *gin.Context) {
 			if channel.Setting != nil && *channel.Setting != "" {
 				_ = common.Unmarshal([]byte(*channel.Setting), &merged)
 			}
-			if err := applyGroupModelsPatch(&merged, rawGroupModels); err != nil {
+			if err := apply(&merged); err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": err.Error(),
@@ -1293,9 +1309,7 @@ func UpdateChannel(c *gin.Context) {
 			// cannot lose each other's entries. The struct update below
 			// leaves the setting column alone (channel.Setting stays nil),
 			// and its reload picks up the merged value for ability rebuilds.
-			err := model.UpdateChannelSettingCAS(channel.Id, func(settings *dto.ChannelSettings) error {
-				return applyGroupModelsPatch(settings, rawGroupModels)
-			})
+			err := model.UpdateChannelSettingCAS(channel.Id, apply)
 			if err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
@@ -1333,6 +1347,9 @@ func UpdateChannel(c *gin.Context) {
 	}
 	if _, ok := requestData["group_models"]; ok {
 		changedFields = append(changedFields, "group_models")
+	}
+	if _, ok := requestData["group_models_deny"]; ok {
+		changedFields = append(changedFields, "group_models_deny")
 	}
 	updateAudit := map[string]any{
 		"id":             channel.Id,

@@ -25,7 +25,8 @@ import {
   channelGroupModels,
   isManagedName,
   parseGroupMaps,
-  poolModelAllowlist,
+  poolModelFilter,
+  poolModelFilterPatch,
   poolUserAccess,
   serializeMaps,
   unionChannelModels,
@@ -209,23 +210,25 @@ describe('serializeMaps', () => {
 })
 
 describe('channelGroupModels', () => {
-  it('parses group_models from channel setting JSON', () => {
+  it('parses allow and deny maps from channel setting JSON', () => {
     const setting = JSON.stringify({
       proxy: 'socks5://x',
       group_models: { kimi: ['kimi-k2'], claude: [] },
+      group_models_deny: { kimi: ['kimi-k1'] },
     })
     expect(channelGroupModels(setting)).toEqual({
-      kimi: ['kimi-k2'],
-      claude: [],
+      allow: { kimi: ['kimi-k2'], claude: [] },
+      deny: { kimi: ['kimi-k1'] },
     })
   })
 
-  it('returns an empty map for missing or malformed settings', () => {
-    expect(channelGroupModels(undefined)).toEqual({})
-    expect(channelGroupModels(null)).toEqual({})
-    expect(channelGroupModels('')).toEqual({})
-    expect(channelGroupModels('{bad')).toEqual({})
-    expect(channelGroupModels('{"other":1}')).toEqual({})
+  it('returns empty maps for missing or malformed settings', () => {
+    const empty = { allow: {}, deny: {} }
+    expect(channelGroupModels(undefined)).toEqual(empty)
+    expect(channelGroupModels(null)).toEqual(empty)
+    expect(channelGroupModels('')).toEqual(empty)
+    expect(channelGroupModels('{bad')).toEqual(empty)
+    expect(channelGroupModels('{"other":1}')).toEqual(empty)
   })
 })
 
@@ -242,7 +245,7 @@ describe('unionChannelModels', () => {
   })
 })
 
-describe('poolModelAllowlist', () => {
+describe('poolModelFilter', () => {
   const channels = [
     {
       setting: JSON.stringify({
@@ -258,16 +261,75 @@ describe('poolModelAllowlist', () => {
   ]
 
   it('unions the allowlists members store for the pool', () => {
-    expect(poolModelAllowlist(channels, 'kimi')).toEqual(['kimi-k2', 'kimi-k3'])
+    expect(poolModelFilter(channels, 'kimi')).toEqual({
+      mode: 'allow',
+      models: ['kimi-k2', 'kimi-k3'],
+    })
   })
 
-  it('returns empty when no member restricts the pool', () => {
-    expect(poolModelAllowlist(channels, 'deepseek')).toEqual([])
-    expect(poolModelAllowlist([{ setting: undefined }], 'kimi')).toEqual([])
+  it('returns all-mode when no member restricts the pool', () => {
+    expect(poolModelFilter(channels, 'deepseek')).toEqual({
+      mode: 'all',
+      models: [],
+    })
+    expect(poolModelFilter([{ setting: undefined }], 'kimi')).toEqual({
+      mode: 'all',
+      models: [],
+    })
   })
 
-  it('only reads the requested pool, leaving other entries untouched', () => {
-    expect(poolModelAllowlist(channels, 'claude')).toEqual(['claude-opus'])
+  it('only reads the requested pool', () => {
+    expect(poolModelFilter(channels, 'claude')).toEqual({
+      mode: 'allow',
+      models: ['claude-opus'],
+    })
+  })
+
+  it('deny mode wins when members diverge', () => {
+    const mixed = [
+      {
+        setting: JSON.stringify({
+          group_models: { kimi: ['kimi-k2'] },
+          group_models_deny: { kimi: ['kimi-k9'] },
+        }),
+      },
+      {
+        setting: JSON.stringify({
+          group_models: { kimi: ['kimi-k3'] },
+        }),
+      },
+    ]
+    expect(poolModelFilter(mixed, 'kimi')).toEqual({
+      mode: 'deny',
+      models: ['kimi-k9'],
+    })
+  })
+})
+
+describe('poolModelFilterPatch', () => {
+  it('allow mode sets the allowlist and clears the deny entry', () => {
+    expect(
+      poolModelFilterPatch('kimi', { mode: 'allow', models: ['a', 'b'] })
+    ).toEqual({
+      allow: { kimi: ['a', 'b'] },
+      deny: { kimi: null },
+    })
+  })
+
+  it('deny mode sets the denylist and clears the allow entry', () => {
+    expect(
+      poolModelFilterPatch('kimi', { mode: 'deny', models: ['b'] })
+    ).toEqual({
+      allow: { kimi: null },
+      deny: { kimi: ['b'] },
+    })
+  })
+
+  it('all mode clears both entries', () => {
+    expect(poolModelFilterPatch('kimi', { mode: 'all', models: [] })).toEqual({
+      allow: { kimi: null },
+      deny: { kimi: null },
+    })
   })
 })
 

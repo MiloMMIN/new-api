@@ -30,6 +30,10 @@ type ChannelSettings struct {
 	// of models offered for it; groups without an entry serve all declared
 	// models, and an empty entry serves none.
 	GroupModels map[string][]string `json:"group_models,omitempty"`
+	// GroupModelsDeny is the blacklist counterpart of GroupModels: models
+	// listed for a group are removed from what the channel serves for it,
+	// after the allowlist (when present) is applied.
+	GroupModelsDeny map[string][]string `json:"group_models_deny,omitempty"`
 }
 
 const (

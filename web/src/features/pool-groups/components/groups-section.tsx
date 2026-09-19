@@ -38,13 +38,14 @@ import { Input } from '@/components/ui/input'
 import { updateChannel } from '@/features/channels/api'
 import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
 
-import { patchChannelGroupModels } from '../api'
+import { patchChannelModelFilter } from '../api'
 import {
   applyPoolUserAccess,
   applyRows,
   buildRows,
   createRow,
-  poolModelAllowlist,
+  poolModelFilter,
+  poolModelFilterPatch,
   poolUserAccess,
   serializeMaps,
   unionChannelModels,
@@ -52,8 +53,10 @@ import {
   type GroupKind,
   type GroupMaps,
   type GroupRow,
+  type PoolModelFilter,
   type PoolUserAccess,
 } from '../lib'
+import { PoolModelsDialog } from './pool-models-dialog'
 import { UserAccessDialog } from './user-access-dialog'
 
 const sectionCardClassName =
@@ -98,6 +101,7 @@ export function GroupsSection(props: GroupsSectionProps) {
   )
   const [deleteTarget, setDeleteTarget] = useState<GroupRow | null>(null)
   const [accessTarget, setAccessTarget] = useState<GroupRow | null>(null)
+  const [modelsTarget, setModelsTarget] = useState<GroupRow | null>(null)
   const [channelsSaving, setChannelsSaving] = useState(false)
   const [modelsSaving, setModelsSaving] = useState(false)
   const [accessSaving, setAccessSaving] = useState(false)
@@ -244,16 +248,19 @@ export function GroupsSection(props: GroupsSectionProps) {
     }
   }
 
-  // Write a per-pool model allowlist to every channel carrying the pool tag.
+  // Write a per-pool model filter to every channel carrying the pool tag.
   // The backend intersects it with each channel's declared models, so one
-  // shared list is safe across heterogeneous members. An empty selection
-  // removes the entry and restores unrestricted serving.
-  const updatePoolModels = async (poolName: string, models: string[]) => {
+  // shared list is safe across heterogeneous members. 'all' clears both
+  // allow and deny entries and restores unrestricted serving.
+  const updatePoolModelFilter = async (
+    poolName: string,
+    filter: PoolModelFilter
+  ) => {
     const pool = poolName.trim()
     if (!pool) return
     const attached = channelsForPool(props.channels, pool)
     if (attached.length === 0) return
-    const patch = { [pool]: models.length > 0 ? models : null }
+    const { allow, deny } = poolModelFilterPatch(pool, filter)
 
     setModelsSaving(true)
     const failures: string[] = []
@@ -261,7 +268,7 @@ export function GroupsSection(props: GroupsSectionProps) {
       await Promise.all(
         attached.map(async (channel) => {
           try {
-            const res = await patchChannelGroupModels(channel.id, patch)
+            const res = await patchChannelModelFilter(channel.id, allow, deny)
             if (!res.success) failures.push(channel.name)
           } catch {
             failures.push(channel.name)
@@ -270,6 +277,7 @@ export function GroupsSection(props: GroupsSectionProps) {
       )
     } finally {
       setModelsSaving(false)
+      setModelsTarget(null)
       await queryClient.invalidateQueries({ queryKey: ['channels'] })
     }
     if (failures.length > 0) {
@@ -511,31 +519,30 @@ export function GroupsSection(props: GroupsSectionProps) {
                   {
                     id: 'models',
                     header: t('Models'),
-                    className: 'min-w-56',
+                    className: 'w-32',
                     cell: (row: GroupRow) => {
                       const pool = row.name.trim()
                       const attached = channelsForPool(props.channels, pool)
-                      const options = unionChannelModels(
-                        attached.map((channel) => channel.models)
-                      )
+                      const filter = poolModelFilter(attached, pool)
+                      let label = t('All models')
+                      if (filter.mode === 'allow') {
+                        label = t('{{count}} allowed', {
+                          count: filter.models.length,
+                        })
+                      } else if (filter.mode === 'deny') {
+                        label = t('{{count}} blocked', {
+                          count: filter.models.length,
+                        })
+                      }
                       return (
-                        <MultiSelect
-                          options={options.map((model) => ({
-                            value: model,
-                            label: model,
-                          }))}
-                          selected={poolModelAllowlist(attached, pool)}
-                          onChange={(models) => {
-                            void updatePoolModels(pool, models)
-                          }}
-                          placeholder={t('All models')}
-                          emptyText={t('No models on attached channels')}
-                          maxVisibleChips={2}
-                          allowCreate
-                          disabled={
-                            !pool || attached.length === 0 || modelsSaving
-                          }
-                        />
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          disabled={!pool || attached.length === 0}
+                          onClick={() => setModelsTarget(row)}
+                        >
+                          {label}
+                        </Button>
                       )
                     },
                   },
@@ -593,6 +600,28 @@ export function GroupsSection(props: GroupsSectionProps) {
         )}
       </CardContent>
 
+      <PoolModelsDialog
+        open={modelsTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setModelsTarget(null)
+        }}
+        poolName={modelsTarget?.name ?? ''}
+        options={unionChannelModels(
+          channelsForPool(props.channels, modelsTarget?.name.trim() ?? '').map(
+            (channel) => channel.models
+          )
+        )}
+        filter={poolModelFilter(
+          channelsForPool(props.channels, modelsTarget?.name.trim() ?? ''),
+          modelsTarget?.name.trim() ?? ''
+        )}
+        saving={modelsSaving}
+        onSave={(filter) => {
+          if (modelsTarget) {
+            void updatePoolModelFilter(modelsTarget.name, filter)
+          }
+        }}
+      />
       <UserAccessDialog
         open={accessTarget !== null}
         onOpenChange={(open) => {
