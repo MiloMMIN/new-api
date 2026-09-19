@@ -90,6 +90,11 @@ export interface ChannelSettings {
   system_prompt_override?: boolean
   http_protocol?: 'auto' | 'http1' | string
   http2_connection_shards?: number
+  /**
+   * Per-group model allowlist. A group name maps to the models this channel
+   * serves for it; groups without an entry serve all declared models.
+   */
+  group_models?: Record<string, string[]>
 }
 
 export interface ChannelOtherSettings {

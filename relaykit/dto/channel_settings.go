@@ -25,6 +25,11 @@ type ChannelSettings struct {
 	// HTTP2ConnectionShards spreads HTTP/2 traffic across N independent transports
 	// (1-8). Zero/unset means 1. Ignored when HTTPProtocol is "http1".
 	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
+	// GroupModels restricts which of the channel's declared models are served
+	// under a specific routing group (pool). A group name maps to the allowlist
+	// of models offered for it; groups without an entry serve all declared
+	// models, and an empty entry serves none.
+	GroupModels map[string][]string `json:"group_models,omitempty"`
 }
 
 const (

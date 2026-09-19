@@ -3758,6 +3758,7 @@
     "No models match your current filters.": "没有模型匹配您当前的筛选条件。",
     "No models match your search": "没有匹配的模型",
     "No models matched your search.": "没有匹配搜索的模型",
+    "No models on attached channels": "已挂载渠道没有可用模型",
     "No models returned by the upstream": "上游未返回模型",
     "No models selected": "未选择模型",
     "No models to add": "无待新增模型",

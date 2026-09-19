@@ -311,6 +311,27 @@ func (channel *Channel) GetGroups() []string {
 	return groups
 }
 
+// GetModelsForGroup returns the subset of the channel's declared models that
+// are offered under the given routing group. A group_models allowlist in the
+// channel setting narrows the (group, model) pairs emitted into abilities;
+// groups without an entry serve all declared models, while an explicitly
+// empty entry serves none.
+func (channel *Channel) GetModelsForGroup(group string) []string {
+	models := channel.GetModels()
+	allowed, ok := channel.GetSetting().GroupModels[group]
+	if !ok {
+		return models
+	}
+	allowedSet := make(map[string]struct{}, len(allowed))
+	for _, model := range allowed {
+		allowedSet[model] = struct{}{}
+	}
+	return lo.Filter(models, func(model string, _ int) bool {
+		_, ok := allowedSet[model]
+		return ok
+	})
+}
+
 func (channel *Channel) GetOtherInfo() map[string]any {
 	otherInfo := make(map[string]any)
 	if channel.OtherInfo != "" {

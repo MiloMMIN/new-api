@@ -21,9 +21,12 @@ import { describe, expect, it } from 'vitest'
 import {
   applyRows,
   buildRows,
+  channelGroupModels,
   isManagedName,
   parseGroupMaps,
+  poolModelAllowlist,
   serializeMaps,
+  unionChannelModels,
   type GroupMaps,
   type GroupRow,
 } from '../lib'
@@ -187,5 +190,68 @@ describe('serializeMaps', () => {
     expect(JSON.parse(out.GroupRatio)).toEqual(baseMaps.groupRatio)
     expect(JSON.parse(out.UserUsableGroups)).toEqual(baseMaps.usableGroups)
     expect(JSON.parse(out.TopupGroupRatio)).toEqual(baseMaps.topupRatio)
+  })
+})
+
+describe('channelGroupModels', () => {
+  it('parses group_models from channel setting JSON', () => {
+    const setting = JSON.stringify({
+      proxy: 'socks5://x',
+      group_models: { kimi: ['kimi-k2'], claude: [] },
+    })
+    expect(channelGroupModels(setting)).toEqual({
+      kimi: ['kimi-k2'],
+      claude: [],
+    })
+  })
+
+  it('returns an empty map for missing or malformed settings', () => {
+    expect(channelGroupModels(undefined)).toEqual({})
+    expect(channelGroupModels(null)).toEqual({})
+    expect(channelGroupModels('')).toEqual({})
+    expect(channelGroupModels('{bad')).toEqual({})
+    expect(channelGroupModels('{"other":1}')).toEqual({})
+  })
+})
+
+describe('unionChannelModels', () => {
+  it('merges comma-separated model lists, dedupes and sorts', () => {
+    expect(
+      unionChannelModels(['kimi-k2, claude-opus', 'claude-opus, gpt-5 ,,'])
+    ).toEqual(['claude-opus', 'gpt-5', 'kimi-k2'])
+  })
+
+  it('handles empty input', () => {
+    expect(unionChannelModels([])).toEqual([])
+    expect(unionChannelModels(['', ' , '])).toEqual([])
+  })
+})
+
+describe('poolModelAllowlist', () => {
+  const channels = [
+    {
+      setting: JSON.stringify({
+        group_models: { kimi: ['kimi-k2'], claude: ['claude-opus'] },
+      }),
+    },
+    {
+      setting: JSON.stringify({
+        group_models: { kimi: ['kimi-k3'] },
+      }),
+    },
+    { setting: undefined },
+  ]
+
+  it('unions the allowlists members store for the pool', () => {
+    expect(poolModelAllowlist(channels, 'kimi')).toEqual(['kimi-k2', 'kimi-k3'])
+  })
+
+  it('returns empty when no member restricts the pool', () => {
+    expect(poolModelAllowlist(channels, 'deepseek')).toEqual([])
+    expect(poolModelAllowlist([{ setting: undefined }], 'kimi')).toEqual([])
+  })
+
+  it('only reads the requested pool, leaving other entries untouched', () => {
+    expect(poolModelAllowlist(channels, 'claude')).toEqual(['claude-opus'])
   })
 })

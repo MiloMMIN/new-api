@@ -38,11 +38,14 @@ import { Input } from '@/components/ui/input'
 import { updateChannel } from '@/features/channels/api'
 import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
 
+import { patchChannelGroupModels } from '../api'
 import {
   applyRows,
   buildRows,
   createRow,
+  poolModelAllowlist,
   serializeMaps,
+  unionChannelModels,
   type GroupKind,
   type GroupMaps,
   type GroupRow,
@@ -56,6 +59,10 @@ export type ChannelRef = {
   id: number
   name: string
   group: string
+  /** comma-separated models the channel declares */
+  models: string
+  /** raw channel.setting JSON; group_models inside carries pool allowlists */
+  setting?: string | null
   priority?: number
 }
 
@@ -86,6 +93,7 @@ export function GroupsSection(props: GroupsSectionProps) {
   )
   const [deleteTarget, setDeleteTarget] = useState<GroupRow | null>(null)
   const [channelsSaving, setChannelsSaving] = useState(false)
+  const [modelsSaving, setModelsSaving] = useState(false)
   // Descriptions live inside UserUsableGroups, so unchecking "selectable"
   // would otherwise drop the saved text. Cache it per name so toggling back
   // restores it.
@@ -218,6 +226,43 @@ export function GroupsSection(props: GroupsSectionProps) {
       )
     } finally {
       setChannelsSaving(false)
+      await queryClient.invalidateQueries({ queryKey: ['channels'] })
+    }
+    if (failures.length > 0) {
+      toast.error(
+        t('Failed to update channels: {{names}}', {
+          names: failures.join(', '),
+        })
+      )
+    }
+  }
+
+  // Write a per-pool model allowlist to every channel carrying the pool tag.
+  // The backend intersects it with each channel's declared models, so one
+  // shared list is safe across heterogeneous members. An empty selection
+  // removes the entry and restores unrestricted serving.
+  const updatePoolModels = async (poolName: string, models: string[]) => {
+    const pool = poolName.trim()
+    if (!pool) return
+    const attached = channelsForPool(props.channels, pool)
+    if (attached.length === 0) return
+    const patch = { [pool]: models.length > 0 ? models : null }
+
+    setModelsSaving(true)
+    const failures: string[] = []
+    try {
+      await Promise.all(
+        attached.map(async (channel) => {
+          try {
+            const res = await patchChannelGroupModels(channel.id, patch)
+            if (!res.success) failures.push(channel.name)
+          } catch {
+            failures.push(channel.name)
+          }
+        })
+      )
+    } finally {
+      setModelsSaving(false)
       await queryClient.invalidateQueries({ queryKey: ['channels'] })
     }
     if (failures.length > 0) {
@@ -410,6 +455,37 @@ export function GroupsSection(props: GroupsSectionProps) {
                           placeholder={t('Select channels')}
                           maxVisibleChips={2}
                           disabled={!pool || channelsSaving}
+                        />
+                      )
+                    },
+                  },
+                  {
+                    id: 'models',
+                    header: t('Models'),
+                    className: 'min-w-56',
+                    cell: (row: GroupRow) => {
+                      const pool = row.name.trim()
+                      const attached = channelsForPool(props.channels, pool)
+                      const options = unionChannelModels(
+                        attached.map((channel) => channel.models)
+                      )
+                      return (
+                        <MultiSelect
+                          options={options.map((model) => ({
+                            value: model,
+                            label: model,
+                          }))}
+                          selected={poolModelAllowlist(attached, pool)}
+                          onChange={(models) => {
+                            void updatePoolModels(pool, models)
+                          }}
+                          placeholder={t('All models')}
+                          emptyText={t('No models on attached channels')}
+                          maxVisibleChips={2}
+                          allowCreate
+                          disabled={
+                            !pool || attached.length === 0 || modelsSaving
+                          }
                         />
                       )
                     },
