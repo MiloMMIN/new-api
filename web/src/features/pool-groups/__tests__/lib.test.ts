@@ -73,26 +73,22 @@ describe('buildRows', () => {
   })
 
   it('hydrates ratio, selectable and description from the maps', () => {
-    const [claude] = buildRows(baseMaps, 'pool').filter(
+    const claude = buildRows(baseMaps, 'pool').find(
       (row) => row.name === 'claude'
     )
-    expect(claude.ratio).toBe('1.2')
-    expect(claude.selectable).toBe(false)
-    expect(claude.description).toBe('')
+    expect(claude).toMatchObject({
+      ratio: '1.2',
+      selectable: false,
+      description: '',
+    })
 
-    const [kimi] = buildRows(baseMaps, 'pool').filter(
-      (row) => row.name === 'kimi'
-    )
-    expect(kimi.selectable).toBe(true)
-    expect(kimi.description).toBe('Kimi 池')
+    const kimi = buildRows(baseMaps, 'pool').find((row) => row.name === 'kimi')
+    expect(kimi).toMatchObject({ selectable: true, description: 'Kimi 池' })
   })
 
   it('hydrates topupRatio for user rows only', () => {
-    const [vip] = buildRows(baseMaps, 'user').filter(
-      (row) => row.name === 'vip'
-    )
-    expect(vip.topupRatio).toBe('0.9')
-    expect(vip.ratio).toBe('0.9')
+    const vip = buildRows(baseMaps, 'user').find((row) => row.name === 'vip')
+    expect(vip).toMatchObject({ topupRatio: '0.9', ratio: '0.9' })
   })
 })
 
@@ -108,7 +104,12 @@ describe('isManagedName', () => {
 describe('applyRows', () => {
   it('rewrites only the pool slice and preserves user-group entries', () => {
     const rows = [
-      makeRow({ name: 'kimi', ratio: '0.5', selectable: true, description: 'K' }),
+      makeRow({
+        name: 'kimi',
+        ratio: '0.5',
+        selectable: true,
+        description: 'K',
+      }),
       makeRow({ name: 'gemini', ratio: '2' }),
     ]
     const next = applyRows(baseMaps, 'pool', rows)
@@ -138,7 +139,12 @@ describe('applyRows', () => {
 
     expect(next.topupRatio).toEqual({ default: 1, svip: 0.7 })
     // vip removed from groupRatio/usableGroups since it is a managed user name
-    expect(next.groupRatio).toEqual({ default: 1, kimi: 1, claude: 1.2, svip: 0.8 })
+    expect(next.groupRatio).toEqual({
+      default: 1,
+      kimi: 1,
+      claude: 1.2,
+      svip: 0.8,
+    })
     expect(next.usableGroups).toEqual({ kimi: 'Kimi 池' })
   })
 
@@ -157,16 +163,20 @@ describe('applyRows', () => {
   it('round-trips rows through applyRows -> buildRows', () => {
     const poolRows = buildRows(baseMaps, 'pool')
     const next = applyRows(baseMaps, 'pool', poolRows)
-    expect(buildRows(next, 'pool').map((row) => row.name).sort()).toEqual(
-      poolRows.map((row) => row.name).sort()
-    )
+    expect(
+      buildRows(next, 'pool')
+        .map((row) => row.name)
+        .sort()
+    ).toEqual(poolRows.map((row) => row.name).sort())
     expect(next.usableGroups).toEqual(baseMaps.usableGroups)
 
     const userRows = buildRows(baseMaps, 'user')
     const nextUser = applyRows(baseMaps, 'user', userRows)
-    expect(buildRows(nextUser, 'user').map((row) => row.name).sort()).toEqual(
-      userRows.map((row) => row.name).sort()
-    )
+    expect(
+      buildRows(nextUser, 'user')
+        .map((row) => row.name)
+        .sort()
+    ).toEqual(userRows.map((row) => row.name).sort())
     expect(nextUser.topupRatio).toEqual(baseMaps.topupRatio)
   })
 })
