@@ -1066,6 +1066,50 @@ type ChannelStatusRequest struct {
 	Status int `json:"status"`
 }
 
+// applyGroupModelsPatch merges a group_models patch into channel settings.
+// The patch maps pool (group) names to model lists; a JSON null value for the
+// whole field clears every allowlist, and null per group removes that group's
+// entry. Entries for groups absent from the patch are preserved. Blank model
+// names are dropped; non-object or non-list values are rejected.
+func applyGroupModelsPatch(settings *dto.ChannelSettings, raw any) error {
+	if raw == nil {
+		settings.GroupModels = nil
+		return nil
+	}
+	rawBytes, err := common.Marshal(raw)
+	if err != nil {
+		return err
+	}
+	var patch map[string]json.RawMessage
+	if err := common.Unmarshal(rawBytes, &patch); err != nil {
+		return errors.New("group_models must be an object of group -> model list (or null)")
+	}
+	if settings.GroupModels == nil && len(patch) > 0 {
+		settings.GroupModels = make(map[string][]string, len(patch))
+	}
+	for group, rawList := range patch {
+		if string(rawList) == "null" {
+			delete(settings.GroupModels, group)
+			continue
+		}
+		var list []string
+		if err := common.Unmarshal(rawList, &list); err != nil || list == nil {
+			return fmt.Errorf("group_models.%s must be a model list or null", group)
+		}
+		cleaned := list[:0]
+		for _, modelName := range list {
+			if name := strings.TrimSpace(modelName); name != "" {
+				cleaned = append(cleaned, name)
+			}
+		}
+		settings.GroupModels[group] = cleaned
+	}
+	if len(settings.GroupModels) == 0 {
+		settings.GroupModels = nil
+	}
+	return nil
+}
+
 type ChannelStatusBatchRequest struct {
 	Ids    []int `json:"ids"`
 	Status int   `json:"status"`
@@ -1227,47 +1271,22 @@ func UpdateChannel(c *gin.Context) {
 	// {group: [models]} sets the allowlist, {group: null} removes it. Entries
 	// for other groups on the same channel are preserved.
 	if rawGroupModels, ok := requestData["group_models"]; ok {
-		rawBytes, marshalErr := common.Marshal(rawGroupModels)
-		var patch map[string]json.RawMessage
-		if marshalErr == nil {
-			marshalErr = common.Unmarshal(rawBytes, &patch)
+		// Patch on top of the setting this request carries when `setting` is
+		// provided (including an intentionally empty one); otherwise patch
+		// onto the stored setting.
+		merged := originChannel.GetSetting()
+		if _, provided := requestData["setting"]; provided {
+			merged = dto.ChannelSettings{}
+			if channel.Setting != nil && *channel.Setting != "" {
+				_ = common.Unmarshal([]byte(*channel.Setting), &merged)
+			}
 		}
-		if marshalErr != nil {
+		if err := applyGroupModelsPatch(&merged, rawGroupModels); err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "group_models must be an object of group -> model list (or null)",
+				"message": err.Error(),
 			})
 			return
-		}
-		merged := originChannel.GetSetting()
-		// When the same request also replaces `setting`, patch on top of the
-		// incoming value instead of the stored one.
-		if channel.Setting != nil && *channel.Setting != "" {
-			var provided dto.ChannelSettings
-			if err := common.Unmarshal([]byte(*channel.Setting), &provided); err == nil {
-				merged = provided
-			}
-		}
-		if merged.GroupModels == nil {
-			merged.GroupModels = make(map[string][]string, len(patch))
-		}
-		for group, rawList := range patch {
-			if string(rawList) == "null" {
-				delete(merged.GroupModels, group)
-				continue
-			}
-			var list []string
-			if err := common.Unmarshal(rawList, &list); err != nil || list == nil {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": fmt.Sprintf("group_models.%s must be a model list or null", group),
-				})
-				return
-			}
-			merged.GroupModels[group] = list
-		}
-		if len(merged.GroupModels) == 0 {
-			merged.GroupModels = nil
 		}
 		channel.SetSetting(merged)
 	}
