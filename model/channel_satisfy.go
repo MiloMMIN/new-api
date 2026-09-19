@@ -45,6 +45,21 @@ func IsChannelEnabledForAnyGroupModel(groups []string, modelName string, channel
 }
 
 func isChannelEnabledForGroupModelDB(group string, modelName string, channelID int) bool {
+	if group == AllChannelsGroup {
+		var channel Channel
+		if err := DB.First(&channel, "id = ?", channelID).Error; err != nil {
+			return false
+		}
+		if channel.Status != common.ChannelStatusEnabled {
+			return false
+		}
+		models := channel.GetModelsForGroup(AllChannelsGroup)
+		if slices.Contains(models, modelName) {
+			return true
+		}
+		normalized := ratio_setting.RoutingMatchModelName(modelName)
+		return normalized != "" && normalized != modelName && slices.Contains(models, normalized)
+	}
 	var count int64
 	err := DB.Model(&Ability{}).
 		Where(commonGroupCol+" = ? and model = ? and channel_id = ? and enabled = ?", group, modelName, channelID, true).

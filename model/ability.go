@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 
@@ -13,6 +14,12 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+// AllChannelsGroup is the reserved pool name whose routing table is
+// synthesized from every enabled channel instead of channel group tags.
+// Tokens bound to it can reach any enabled channel, while channel-level
+// group_models/group_models_deny entries keyed by "all" still apply.
+const AllChannelsGroup = "all"
 
 type Ability struct {
 	Group     string  `json:"group" gorm:"type:varchar(64);primaryKey;autoIncrement:false"`
@@ -40,9 +47,33 @@ func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 }
 
 func GetGroupEnabledModels(group string) []string {
+	if group == AllChannelsGroup {
+		return getAllPoolEnabledModels()
+	}
 	var models []string
 	// Find distinct models
 	DB.Table("abilities").Where(commonGroupCol+" = ? and enabled = ?", group, true).Distinct("model").Pluck("model", &models)
+	return models
+}
+
+// getAllPoolEnabledModels unions the models every enabled channel offers
+// under the all-pool filter (declared ∩ group_models["all"] allowlist −
+// group_models_deny["all"]).
+func getAllPoolEnabledModels() []string {
+	var channels []*Channel
+	if err := DB.Where("status = ?", common.ChannelStatusEnabled).Find(&channels).Error; err != nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	models := make([]string, 0)
+	for _, channel := range channels {
+		for _, modelName := range channel.GetModelsForGroup(AllChannelsGroup) {
+			if _, ok := seen[modelName]; !ok {
+				seen[modelName] = struct{}{}
+				models = append(models, modelName)
+			}
+		}
+	}
 	return models
 }
 
@@ -111,11 +142,21 @@ func GetChannel(
 	filters []dto.ChannelFilter,
 ) (*Channel, error) {
 	var abilities []Ability
-	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).Order("priority DESC, weight DESC").Find(&abilities).Error
+	var err error
+	if group == AllChannelsGroup {
+		// The all pool has no ability rows of its own; every enabled channel
+		// offering the model under its all-pool filter is a candidate.
+		err = DB.Where("model = ? and enabled = ?", model, true).Order("priority DESC, weight DESC").Find(&abilities).Error
+	} else {
+		err = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).Order("priority DESC, weight DESC").Find(&abilities).Error
+	}
 	if err != nil {
 		return nil, err
 	}
 	abilities = filterAbilitiesByConstraints(abilities, model, filters)
+	if group == AllChannelsGroup {
+		abilities = filterAbilitiesForAllPool(abilities, model)
+	}
 	if len(abilities) > 0 {
 		priorities := make([]int64, 0)
 		seen := make(map[int64]bool)
@@ -199,6 +240,50 @@ func filterAbilitiesByConstraints(abilities []Ability, modelName string, filters
 		if ok, _ := ChannelSatisfiesFilters(channel, modelName, filters); ok {
 			filtered = append(filtered, ability)
 		}
+	}
+	return filtered
+}
+
+// filterAbilitiesForAllPool deduplicates ability rows by channel (a channel
+// tagged in several groups emits one row per group for the same model) and
+// keeps only channels that offer the model under their all-pool filter.
+func filterAbilitiesForAllPool(abilities []Ability, modelName string) []Ability {
+	if len(abilities) == 0 {
+		return nil
+	}
+	channelIds := make([]int, 0, len(abilities))
+	seen := make(map[int]struct{}, len(abilities))
+	for _, ability := range abilities {
+		if _, ok := seen[ability.ChannelId]; ok {
+			continue
+		}
+		seen[ability.ChannelId] = struct{}{}
+		channelIds = append(channelIds, ability.ChannelId)
+	}
+	var channels []*Channel
+	if err := DB.Where("id IN ?", channelIds).Find(&channels).Error; err != nil {
+		return nil
+	}
+	allowed := make(map[int]struct{}, len(channels))
+	for _, channel := range channels {
+		if channel.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		if slices.Contains(channel.GetModelsForGroup(AllChannelsGroup), modelName) {
+			allowed[channel.Id] = struct{}{}
+		}
+	}
+	filtered := make([]Ability, 0, len(abilities))
+	kept := make(map[int]struct{}, len(abilities))
+	for _, ability := range abilities {
+		if _, ok := allowed[ability.ChannelId]; !ok {
+			continue
+		}
+		if _, ok := kept[ability.ChannelId]; ok {
+			continue
+		}
+		kept[ability.ChannelId] = struct{}{}
+		filtered = append(filtered, ability)
 	}
 	return filtered
 }

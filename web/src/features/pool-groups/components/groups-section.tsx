@@ -89,8 +89,14 @@ function channelGroups(channel: ChannelRef): string[] {
     .filter(Boolean)
 }
 
+// ALL_POOL is the reserved wildcard pool: the backend synthesizes its
+// routing table from every enabled channel, so membership is implicit and
+// cannot be edited by tagging.
+const ALL_POOL = 'all'
+
 function channelsForPool(channels: ChannelRef[], pool: string) {
   if (!pool) return []
+  if (pool === ALL_POOL) return channels
   return channels.filter((channel) => channelGroups(channel).includes(pool))
 }
 
@@ -619,6 +625,13 @@ export function GroupsSection(props: GroupsSectionProps) {
                     cell: (row: GroupRow) => {
                       const pool = row.name.trim()
                       const attached = channelsForPool(props.channels, pool)
+                      if (pool === ALL_POOL) {
+                        return (
+                          <span className='text-muted-foreground text-xs'>
+                            {t('All enabled channels (auto)')}
+                          </span>
+                        )
+                      }
                       return (
                         <MultiSelect
                           options={props.channels.map((channel) => ({
