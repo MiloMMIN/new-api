@@ -3758,6 +3758,7 @@
     "No models match your current filters.": "現在のフィルターに一致するモデルはありません。",
     "No models match your search": "検索に一致するモデルがありません",
     "No models matched your search.": "検索条件に一致するモデルはありません。",
+    "No models on attached channels": "関連付けられたチャネルにモデルがありません",
     "No models returned by the upstream": "上流からモデルが返されませんでした",
     "No models selected": "モデルが選択されていません",
     "No models to add": "追加するモデルがありません",

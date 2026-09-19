@@ -1223,6 +1223,54 @@ func UpdateChannel(c *gin.Context) {
 			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
 		}
 	}
+	// group_models is a partial patch over channel.setting.group_models:
+	// {group: [models]} sets the allowlist, {group: null} removes it. Entries
+	// for other groups on the same channel are preserved.
+	if rawGroupModels, ok := requestData["group_models"]; ok {
+		rawBytes, marshalErr := common.Marshal(rawGroupModels)
+		var patch map[string]json.RawMessage
+		if marshalErr == nil {
+			marshalErr = common.Unmarshal(rawBytes, &patch)
+		}
+		if marshalErr != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "group_models must be an object of group -> model list (or null)",
+			})
+			return
+		}
+		merged := originChannel.GetSetting()
+		// When the same request also replaces `setting`, patch on top of the
+		// incoming value instead of the stored one.
+		if channel.Setting != nil && *channel.Setting != "" {
+			var provided dto.ChannelSettings
+			if err := common.Unmarshal([]byte(*channel.Setting), &provided); err == nil {
+				merged = provided
+			}
+		}
+		if merged.GroupModels == nil {
+			merged.GroupModels = make(map[string][]string, len(patch))
+		}
+		for group, rawList := range patch {
+			if string(rawList) == "null" {
+				delete(merged.GroupModels, group)
+				continue
+			}
+			var list []string
+			if err := common.Unmarshal(rawList, &list); err != nil || list == nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": fmt.Sprintf("group_models.%s must be a model list or null", group),
+				})
+				return
+			}
+			merged.GroupModels[group] = list
+		}
+		if len(merged.GroupModels) == 0 {
+			merged.GroupModels = nil
+		}
+		channel.SetSetting(merged)
+	}
 	err = channel.Update()
 	if err != nil {
 		common.ApiError(c, err)
@@ -1248,6 +1296,9 @@ func UpdateChannel(c *gin.Context) {
 	}
 	if channel.Key != "" && channel.Key != originChannel.Key {
 		changedFields = append(changedFields, "key")
+	}
+	if _, ok := requestData["group_models"]; ok {
+		changedFields = append(changedFields, "group_models")
 	}
 	updateAudit := map[string]any{
 		"id":             channel.Id,

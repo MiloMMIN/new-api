@@ -178,3 +178,50 @@ export function createRow(prefix: string, existing: string[]): GroupRow {
     description: '',
   }
 }
+
+/** Parsed view of channel.setting relevant to pool membership. */
+export function channelGroupModels(
+  setting: string | null | undefined
+): Record<string, string[]> {
+  if (!setting) return {}
+  const parsed = safeJsonParse<{ group_models?: Record<string, string[]> }>(
+    setting,
+    { fallback: {}, silent: true }
+  )
+  return parsed.group_models ?? {}
+}
+
+/** Distinct union of the models declared by the given channels, sorted. */
+export function unionChannelModels(modelsCsv: string[]): string[] {
+  const set = new Set<string>()
+  for (const csv of modelsCsv) {
+    for (const model of csv.split(',')) {
+      const trimmed = model.trim()
+      if (trimmed) set.add(trimmed)
+    }
+  }
+  return [...set].sort()
+}
+
+/**
+ * The explicit model allowlist a pool currently stores on its member
+ * channels: union of every member's group_models entry for it. An empty
+ * result means the pool is unrestricted — each member serves all of its
+ * declared models. The stored state is shown as-is; members with divergent
+ * entries are normalized the next time the pool's model list is saved.
+ */
+export function poolModelAllowlist(
+  channels: { setting?: string | null }[],
+  pool: string
+): string[] {
+  const set = new Set<string>()
+  for (const channel of channels) {
+    const allowlist = channelGroupModels(channel.setting)[pool]
+    if (!allowlist) continue
+    for (const model of allowlist) {
+      const trimmed = model.trim()
+      if (trimmed) set.add(trimmed)
+    }
+  }
+  return [...set].sort()
+}

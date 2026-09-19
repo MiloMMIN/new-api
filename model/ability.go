@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
@@ -214,12 +213,11 @@ func identityFilterRequiresKey(filters []dto.ChannelFilter) bool {
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
-	models_ := strings.Split(channel.Models, ",")
-	groups_ := strings.Split(channel.Group, ",")
+	groups_ := channel.GetGroups()
 	abilitySet := make(map[string]struct{})
-	abilities := make([]Ability, 0, len(models_))
-	for _, model := range models_ {
-		for _, group := range groups_ {
+	abilities := make([]Ability, 0)
+	for _, group := range groups_ {
+		for _, model := range channel.GetModelsForGroup(group) {
 			key := group + "|" + model
 			if _, exists := abilitySet[key]; exists {
 				continue
@@ -286,12 +284,11 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 	}
 
 	// Then add new abilities
-	models_ := channel.GetModels()
-	groups_ := strings.Split(channel.Group, ",")
+	groups_ := channel.GetGroups()
 	abilitySet := make(map[string]struct{})
-	abilities := make([]Ability, 0, len(models_))
-	for _, model := range models_ {
-		for _, group := range groups_ {
+	abilities := make([]Ability, 0)
+	for _, group := range groups_ {
+		for _, model := range channel.GetModelsForGroup(group) {
 			key := group + "|" + model
 			if _, exists := abilitySet[key]; exists {
 				continue
