@@ -431,6 +431,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		}
 	}
 
+	if relayInfo.StreamStatus != nil && relayInfo.StreamStatus.ResponseFailed() {
+		summary.Quota = 0
+		extraContent = append(extraContent, "上游响应失败，本次不计费")
+	}
+
 	for _, item := range summary.ToolSurchargeItems {
 		q := decimal.NewFromFloat(item.Price).
 			Mul(decimal.NewFromInt(int64(item.Count))).
