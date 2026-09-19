@@ -19,14 +19,17 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, it } from 'vitest'
 
 import {
+  applyPoolUserAccess,
   applyRows,
   buildRows,
   channelGroupModels,
   isManagedName,
   parseGroupMaps,
   poolModelAllowlist,
+  poolUserAccess,
   serializeMaps,
   unionChannelModels,
+  userGroupNames,
   type GroupMaps,
   type GroupRow,
 } from '../lib'
@@ -35,6 +38,8 @@ const baseMaps: GroupMaps = {
   groupRatio: { default: 1, vip: 0.9, kimi: 1, claude: 1.2 },
   usableGroups: { default: '默认', vip: 'VIP 用户', kimi: 'Kimi 池' },
   topupRatio: { default: 1, vip: 0.9 },
+  groupGroupRatio: { vip: { kimi: 0.5 } },
+  specialUsable: { svip: { '+:claude': 'svip 专属' } },
 }
 
 function makeRow(partial: Partial<GroupRow> & { name: string }): GroupRow {
@@ -53,16 +58,26 @@ describe('parseGroupMaps', () => {
     const maps = parseGroupMaps(
       '{"kimi":1,"claude":1.2}',
       '{"kimi":"desc"}',
-      '{"vip":0.9}'
+      '{"vip":0.9}',
+      '{"vip":{"kimi":0.5}}',
+      '{"svip":{"+:claude":"x"}}'
     )
     expect(maps.groupRatio).toEqual({ kimi: 1, claude: 1.2 })
     expect(maps.usableGroups).toEqual({ kimi: 'desc' })
     expect(maps.topupRatio).toEqual({ vip: 0.9 })
+    expect(maps.groupGroupRatio).toEqual({ vip: { kimi: 0.5 } })
+    expect(maps.specialUsable).toEqual({ svip: { '+:claude': 'x' } })
   })
 
   it('falls back to empty maps on invalid JSON', () => {
     const maps = parseGroupMaps('not json', '', '{bad')
-    expect(maps).toEqual({ groupRatio: {}, usableGroups: {}, topupRatio: {} })
+    expect(maps).toEqual({
+      groupRatio: {},
+      usableGroups: {},
+      topupRatio: {},
+      groupGroupRatio: {},
+      specialUsable: {},
+    })
   })
 })
 
@@ -253,5 +268,84 @@ describe('poolModelAllowlist', () => {
 
   it('only reads the requested pool, leaving other entries untouched', () => {
     expect(poolModelAllowlist(channels, 'claude')).toEqual(['claude-opus'])
+  })
+})
+
+describe('userGroupNames', () => {
+  it('returns TopupGroupRatio keys', () => {
+    expect(userGroupNames(baseMaps).sort()).toEqual(['default', 'vip'])
+  })
+})
+
+describe('poolUserAccess', () => {
+  it('inherits the global baseline when no override exists', () => {
+    // kimi is in usableGroups → visible to everyone by default
+    expect(poolUserAccess(baseMaps, 'kimi', 'vip')).toEqual({
+      enabled: true,
+      ratio: '0.5',
+    })
+    // claude is not → hidden by default
+    expect(poolUserAccess(baseMaps, 'claude', 'vip')).toEqual({
+      enabled: false,
+      ratio: '',
+    })
+  })
+
+  it('applies +: and -: overrides on top of the baseline', () => {
+    const maps: GroupMaps = {
+      ...baseMaps,
+      specialUsable: {
+        vip: { '-:kimi': '', '+:claude': 'svip 专属' },
+      },
+    }
+    expect(poolUserAccess(maps, 'kimi', 'vip').enabled).toBe(false)
+    expect(poolUserAccess(maps, 'claude', 'vip').enabled).toBe(true)
+  })
+})
+
+describe('applyPoolUserAccess', () => {
+  it('writes -: entries when revoking a baseline-visible pool', () => {
+    const next = applyPoolUserAccess(baseMaps, 'kimi', {
+      vip: { enabled: false, ratio: '' },
+    })
+    expect(next.specialUsable.vip['-:kimi']).toBeDefined()
+    expect(next.specialUsable.vip['+:kimi']).toBeUndefined()
+    // empty ratio clears the override
+    expect(next.groupGroupRatio.vip?.kimi).toBeUndefined()
+  })
+
+  it('writes +: entries when granting a hidden pool', () => {
+    const next = applyPoolUserAccess(baseMaps, 'claude', {
+      vip: { enabled: true, ratio: '0.8' },
+    })
+    expect(next.specialUsable.vip['+:claude']).toBeDefined()
+    expect(next.groupGroupRatio.vip.claude).toBe(0.8)
+  })
+
+  it('removes overrides that match the baseline', () => {
+    const maps: GroupMaps = {
+      ...baseMaps,
+      specialUsable: { vip: { '-:kimi': '', '+:other': 'x' } },
+    }
+    const next = applyPoolUserAccess(maps, 'kimi', {
+      vip: { enabled: true, ratio: '' },
+    })
+    // -:kimi removed, unrelated +other preserved
+    expect(next.specialUsable.vip['-:kimi']).toBeUndefined()
+    expect(next.specialUsable.vip['+:other']).toBe('x')
+  })
+
+  it('keeps the ratio override when access is disabled', () => {
+    const next = applyPoolUserAccess(baseMaps, 'kimi', {
+      vip: { enabled: false, ratio: '0.5' },
+    })
+    expect(next.groupGroupRatio.vip.kimi).toBe(0.5)
+  })
+
+  it('does not touch other pools or user groups', () => {
+    const next = applyPoolUserAccess(baseMaps, 'kimi', {
+      vip: { enabled: true, ratio: '0.5' },
+    })
+    expect(next.specialUsable.svip['+:claude']).toBe('svip 专属')
   })
 })

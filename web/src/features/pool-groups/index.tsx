@@ -55,7 +55,13 @@ export function PoolGroups() {
     return parseGroupMaps(
       optionValue(options, 'GroupRatio', '{}'),
       optionValue(options, 'UserUsableGroups', '{}'),
-      optionValue(options, 'TopupGroupRatio', '{}')
+      optionValue(options, 'TopupGroupRatio', '{}'),
+      optionValue(options, 'GroupGroupRatio', '{}'),
+      optionValue(
+        options,
+        'group_ratio_setting.group_special_usable_group',
+        '{}'
+      )
     )
   }, [optionsQuery.data])
 
