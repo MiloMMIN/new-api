@@ -230,6 +230,43 @@ export function unionChannelModels(modelsCsv: string[]): string[] {
   return [...set].sort()
 }
 
+/** Vendor of a model name: the lowercase segment before the first '-'. */
+export function modelVendor(model: string): string {
+  const dash = model.indexOf('-')
+  const head = dash === -1 ? model : model.slice(0, dash)
+  return head.trim().toLowerCase()
+}
+
+export type VendorGroup = {
+  vendor: string
+  models: string[]
+}
+
+/** Declared models grouped by vendor prefix, vendors sorted alphabetically. */
+export function vendorGroups(models: string[]): VendorGroup[] {
+  const map = new Map<string, string[]>()
+  for (const model of models) {
+    const vendor = modelVendor(model)
+    if (!vendor) continue
+    const list = map.get(vendor)
+    if (list) {
+      list.push(model)
+    } else {
+      map.set(vendor, [model])
+    }
+  }
+  return [...map.entries()]
+    .map(([vendor, groupModels]) => ({ vendor, models: groupModels.sort() }))
+    .sort((a, b) => a.vendor.localeCompare(b.vendor))
+}
+
+/** The vendor matching the pool name, when present among the options. */
+export function poolVendor(poolName: string, options: string[]): string | null {
+  const name = poolName.trim().toLowerCase()
+  if (!name) return null
+  return options.some((model) => modelVendor(model) === name) ? name : null
+}
+
 /** Per-pool model filter mode on a channel. */
 export type PoolModelMode = 'all' | 'allow' | 'deny'
 
