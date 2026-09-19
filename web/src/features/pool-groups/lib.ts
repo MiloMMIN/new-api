@@ -202,16 +202,20 @@ export function createRow(prefix: string, existing: string[]): GroupRow {
   }
 }
 
-/** Parsed view of channel.setting relevant to pool membership. */
-export function channelGroupModels(
-  setting: string | null | undefined
-): Record<string, string[]> {
-  if (!setting) return {}
-  const parsed = safeJsonParse<{ group_models?: Record<string, string[]> }>(
-    setting,
-    { fallback: {}, silent: true }
-  )
-  return parsed.group_models ?? {}
+/** Parsed view of channel.setting relevant to pool model filtering. */
+export function channelGroupModels(setting: string | null | undefined): {
+  allow: Record<string, string[]>
+  deny: Record<string, string[]>
+} {
+  if (!setting) return { allow: {}, deny: {} }
+  const parsed = safeJsonParse<{
+    group_models?: Record<string, string[]>
+    group_models_deny?: Record<string, string[]>
+  }>(setting, { fallback: {}, silent: true })
+  return {
+    allow: parsed.group_models ?? {},
+    deny: parsed.group_models_deny ?? {},
+  }
 }
 
 /** Distinct union of the models declared by the given channels, sorted. */
@@ -226,27 +230,66 @@ export function unionChannelModels(modelsCsv: string[]): string[] {
   return [...set].sort()
 }
 
+/** Per-pool model filter mode on a channel. */
+export type PoolModelMode = 'all' | 'allow' | 'deny'
+
+export type PoolModelFilter = {
+  mode: PoolModelMode
+  /** the allow or deny list, depending on mode; ignored when mode is all */
+  models: string[]
+}
+
 /**
- * The explicit model allowlist a pool currently stores on its member
- * channels: union of every member's group_models entry for it. An empty
- * result means the pool is unrestricted — each member serves all of its
- * declared models. The stored state is shown as-is; members with divergent
- * entries are normalized the next time the pool's model list is saved.
+ * The model filter a pool currently stores on its member channels, as one
+ * aggregated value. Mode resolution when members diverge: deny wins over
+ * allow, either wins over unrestricted. The shown list is the union of the
+ * winning map's entries; saving normalizes every member to the same mode.
  */
-export function poolModelAllowlist(
+export function poolModelFilter(
   channels: { setting?: string | null }[],
   pool: string
-): string[] {
-  const set = new Set<string>()
+): PoolModelFilter {
+  const allowModels = new Set<string>()
+  const denyModels = new Set<string>()
+  let hasAllow = false
+  let hasDeny = false
   for (const channel of channels) {
-    const allowlist = channelGroupModels(channel.setting)[pool]
-    if (!allowlist) continue
-    for (const model of allowlist) {
-      const trimmed = model.trim()
-      if (trimmed) set.add(trimmed)
+    const filter = channelGroupModels(channel.setting)
+    const allow = filter.allow[pool]
+    const deny = filter.deny[pool]
+    if (allow) {
+      hasAllow = true
+      for (const model of allow) if (model.trim()) allowModels.add(model.trim())
+    }
+    if (deny) {
+      hasDeny = true
+      for (const model of deny) if (model.trim()) denyModels.add(model.trim())
     }
   }
-  return [...set].sort()
+  if (hasDeny) return { mode: 'deny', models: [...denyModels].sort() }
+  if (hasAllow) return { mode: 'allow', models: [...allowModels].sort() }
+  return { mode: 'all', models: [] }
+}
+
+/**
+ * Split a pool-level filter into the two channel patches: selecting allow
+ * clears the deny entry and vice versa, 'all' clears both.
+ */
+export function poolModelFilterPatch(
+  pool: string,
+  filter: PoolModelFilter
+): {
+  allow: Record<string, string[] | null>
+  deny: Record<string, string[] | null>
+} {
+  switch (filter.mode) {
+    case 'allow':
+      return { allow: { [pool]: filter.models }, deny: { [pool]: null } }
+    case 'deny':
+      return { allow: { [pool]: null }, deny: { [pool]: filter.models } }
+    default:
+      return { allow: { [pool]: null }, deny: { [pool]: null } }
+  }
 }
 
 /** One user group's access state for a pool. */
