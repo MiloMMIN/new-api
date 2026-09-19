@@ -40,16 +40,21 @@ import { useUpdateOption } from '@/features/system-settings/hooks/use-update-opt
 
 import { patchChannelGroupModels } from '../api'
 import {
+  applyPoolUserAccess,
   applyRows,
   buildRows,
   createRow,
   poolModelAllowlist,
+  poolUserAccess,
   serializeMaps,
   unionChannelModels,
+  userGroupNames,
   type GroupKind,
   type GroupMaps,
   type GroupRow,
+  type PoolUserAccess,
 } from '../lib'
+import { UserAccessDialog } from './user-access-dialog'
 
 const sectionCardClassName =
   'relative shadow-sm ring-0 before:pointer-events-none before:absolute before:inset-0 before:rounded-xl before:border before:border-border/90'
@@ -92,8 +97,10 @@ export function GroupsSection(props: GroupsSectionProps) {
     buildRows(props.maps, props.kind)
   )
   const [deleteTarget, setDeleteTarget] = useState<GroupRow | null>(null)
+  const [accessTarget, setAccessTarget] = useState<GroupRow | null>(null)
   const [channelsSaving, setChannelsSaving] = useState(false)
   const [modelsSaving, setModelsSaving] = useState(false)
+  const [accessSaving, setAccessSaving] = useState(false)
   // Descriptions live inside UserUsableGroups, so unchecking "selectable"
   // would otherwise drop the saved text. Cache it per name so toggling back
   // restores it.
@@ -271,6 +278,48 @@ export function GroupsSection(props: GroupsSectionProps) {
           names: failures.join(', '),
         })
       )
+    }
+  }
+
+  // Persist per-user-group access for a pool: visibility overrides go to
+  // group_ratio_setting.group_special_usable_group, ratio overrides to
+  // GroupGroupRatio. Only the keys that actually changed are written.
+  const updatePoolUserAccess = async (
+    poolName: string,
+    access: Record<string, PoolUserAccess>
+  ) => {
+    const pool = poolName.trim()
+    if (!pool) return
+    const nextMaps = {
+      ...props.maps,
+      ...applyPoolUserAccess(props.maps, pool, access),
+    }
+    const next = serializeMaps(nextMaps)
+    const base = serializeMaps(props.maps)
+
+    setAccessSaving(true)
+    try {
+      const jobs: Promise<unknown>[] = []
+      if (next.GroupGroupRatio !== base.GroupGroupRatio) {
+        jobs.push(
+          updateOption.mutateAsync({
+            key: 'GroupGroupRatio',
+            value: next.GroupGroupRatio,
+          })
+        )
+      }
+      if (next.GroupSpecialUsableGroup !== base.GroupSpecialUsableGroup) {
+        jobs.push(
+          updateOption.mutateAsync({
+            key: 'group_ratio_setting.group_special_usable_group',
+            value: next.GroupSpecialUsableGroup,
+          })
+        )
+      }
+      await Promise.all(jobs)
+      setAccessTarget(null)
+    } finally {
+      setAccessSaving(false)
     }
   }
 
@@ -490,6 +539,29 @@ export function GroupsSection(props: GroupsSectionProps) {
                       )
                     },
                   },
+                  {
+                    id: 'user-access',
+                    header: t('User access'),
+                    className: 'w-28',
+                    cell: (row: GroupRow) => {
+                      const pool = row.name.trim()
+                      const groups = userGroupNames(props.maps)
+                      const enabled = groups.filter(
+                        (userGroup) =>
+                          poolUserAccess(props.maps, pool, userGroup).enabled
+                      ).length
+                      return (
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          disabled={!pool || groups.length === 0}
+                          onClick={() => setAccessTarget(row)}
+                        >
+                          {enabled}/{groups.length}
+                        </Button>
+                      )
+                    },
+                  },
                 ]
               : []),
             {
@@ -521,6 +593,27 @@ export function GroupsSection(props: GroupsSectionProps) {
         )}
       </CardContent>
 
+      <UserAccessDialog
+        open={accessTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setAccessTarget(null)
+        }}
+        poolName={accessTarget?.name ?? ''}
+        poolRatio={accessTarget?.ratio ?? '1'}
+        userGroups={userGroupNames(props.maps)}
+        access={Object.fromEntries(
+          userGroupNames(props.maps).map((userGroup) => [
+            userGroup,
+            poolUserAccess(props.maps, accessTarget?.name ?? '', userGroup),
+          ])
+        )}
+        saving={accessSaving}
+        onSave={(access) => {
+          if (accessTarget) {
+            void updatePoolUserAccess(accessTarget.name, access)
+          }
+        }}
+      />
       <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {

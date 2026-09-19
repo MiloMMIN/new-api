@@ -41,6 +41,11 @@ export type GroupMaps = {
   groupRatio: Record<string, number>
   usableGroups: Record<string, string>
   topupRatio: Record<string, number>
+  /** map[userGroup][pool] → usage-price multiplier override */
+  groupGroupRatio: Record<string, Record<string, number>>
+  /** map[userGroup]{"+pool"|"-pool"|"pool" → description}: visibility
+   *  overrides applied on top of the global UserUsableGroups baseline */
+  specialUsable: Record<string, Record<string, string>>
 }
 
 let rowIdCounter = 0
@@ -57,7 +62,9 @@ function normalizeRatio(value: unknown): number {
 export function parseGroupMaps(
   groupRatio: string,
   usableGroups: string,
-  topupRatio: string
+  topupRatio: string,
+  groupGroupRatio = '{}',
+  specialUsable = '{}'
 ): GroupMaps {
   return {
     groupRatio: safeJsonParse<Record<string, number>>(groupRatio, {
@@ -72,6 +79,14 @@ export function parseGroupMaps(
       fallback: {},
       silent: true,
     }),
+    groupGroupRatio: safeJsonParse<Record<string, Record<string, number>>>(
+      groupGroupRatio,
+      { fallback: {}, silent: true }
+    ),
+    specialUsable: safeJsonParse<Record<string, Record<string, string>>>(
+      specialUsable,
+      { fallback: {}, silent: true }
+    ),
   }
 }
 
@@ -151,7 +166,13 @@ export function applyRows(
     }
   }
 
-  return { groupRatio, usableGroups, topupRatio }
+  return {
+    groupRatio,
+    usableGroups,
+    topupRatio,
+    groupGroupRatio: base.groupGroupRatio,
+    specialUsable: base.specialUsable,
+  }
 }
 
 export function serializeMaps(maps: GroupMaps) {
@@ -159,6 +180,8 @@ export function serializeMaps(maps: GroupMaps) {
     GroupRatio: JSON.stringify(maps.groupRatio, null, 2),
     UserUsableGroups: JSON.stringify(maps.usableGroups, null, 2),
     TopupGroupRatio: JSON.stringify(maps.topupRatio, null, 2),
+    GroupGroupRatio: JSON.stringify(maps.groupGroupRatio, null, 2),
+    GroupSpecialUsableGroup: JSON.stringify(maps.specialUsable, null, 2),
   }
 }
 
@@ -224,4 +247,96 @@ export function poolModelAllowlist(
     }
   }
   return [...set].sort()
+}
+
+/** One user group's access state for a pool. */
+export type PoolUserAccess = {
+  /** effective visibility: global baseline adjusted by +:/-: overrides */
+  enabled: boolean
+  /** usage-price multiplier override; '' inherits the pool ratio */
+  ratio: string
+}
+
+/** Names of user groups — every TopupGroupRatio entry is an account group. */
+export function userGroupNames(maps: GroupMaps): string[] {
+  return Object.keys(maps.topupRatio)
+}
+
+/**
+ * Effective (userGroup, pool) access: a pool in UserUsableGroups is visible
+ * to every user group unless a `-:pool` override removes it; a pool outside
+ * it is hidden unless a `+:pool` (or bare `pool`) override adds it. The
+ * ratio override lives in GroupGroupRatio and is kept regardless of access,
+ * so toggling access off and back on never loses a saved price.
+ */
+export function poolUserAccess(
+  maps: GroupMaps,
+  pool: string,
+  userGroup: string
+): PoolUserAccess {
+  const baseline = Object.hasOwn(maps.usableGroups, pool)
+  const special = maps.specialUsable[userGroup] ?? {}
+  let enabled = baseline
+  if (Object.hasOwn(special, `-:${pool}`)) enabled = false
+  if (Object.hasOwn(special, `+:${pool}`) || Object.hasOwn(special, pool)) {
+    enabled = true
+  }
+  const ratio = maps.groupGroupRatio[userGroup]?.[pool]
+  return { enabled, ratio: ratio === undefined ? '' : String(ratio) }
+}
+
+/**
+ * Rebuild the (userGroup, pool) slices of groupGroupRatio and specialUsable
+ * from a per-user-group access draft. Overrides equal to the baseline are
+ * removed so the maps stay minimal; unrelated pools and user groups are
+ * preserved.
+ */
+export function applyPoolUserAccess(
+  base: GroupMaps,
+  pool: string,
+  access: Record<string, PoolUserAccess>
+): Pick<GroupMaps, 'groupGroupRatio' | 'specialUsable'> {
+  const baseline = Object.hasOwn(base.usableGroups, pool)
+  const specialUsable: Record<string, Record<string, string>> = {}
+  const groupGroupRatio: Record<string, Record<string, number>> = {}
+
+  for (const [userGroup, entries] of Object.entries(base.specialUsable)) {
+    specialUsable[userGroup] = { ...entries }
+    delete specialUsable[userGroup][pool]
+    delete specialUsable[userGroup][`+:${pool}`]
+    delete specialUsable[userGroup][`-:${pool}`]
+    if (Object.keys(specialUsable[userGroup]).length === 0) {
+      delete specialUsable[userGroup]
+    }
+  }
+  for (const [userGroup, inner] of Object.entries(base.groupGroupRatio)) {
+    groupGroupRatio[userGroup] = { ...inner }
+    delete groupGroupRatio[userGroup][pool]
+    if (Object.keys(groupGroupRatio[userGroup]).length === 0) {
+      delete groupGroupRatio[userGroup]
+    }
+  }
+
+  for (const [userGroup, draft] of Object.entries(access)) {
+    if (draft.enabled !== baseline) {
+      const entries = (specialUsable[userGroup] ??= {})
+      if (draft.enabled) {
+        entries[`+:${pool}`] =
+          base.specialUsable[userGroup]?.[`+:${pool}`] ??
+          base.specialUsable[userGroup]?.[pool] ??
+          base.usableGroups[pool] ??
+          ''
+      } else {
+        entries[`-:${pool}`] =
+          base.specialUsable[userGroup]?.[`-:${pool}`] ?? ''
+      }
+    }
+    const ratioText = draft.ratio.trim()
+    if (ratioText !== '') {
+      const inner = (groupGroupRatio[userGroup] ??= {})
+      inner[pool] = normalizeRatio(ratioText)
+    }
+  }
+
+  return { groupGroupRatio, specialUsable }
 }
