@@ -39,3 +39,13 @@ func GetTopupGroupRatio(name string) float64 {
 	}
 	return ratio
 }
+
+// IsTopupGroup reports whether name is a user group (present in
+// TopupGroupRatio). Names absent from it are pool groups that select
+// channels for tokens.
+func IsTopupGroup(name string) bool {
+	topupGroupRatioMutex.RLock()
+	defer topupGroupRatioMutex.RUnlock()
+	_, ok := topupGroupRatio[name]
+	return ok
+}
