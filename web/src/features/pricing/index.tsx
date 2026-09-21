@@ -76,6 +76,7 @@ export function Pricing() {
     setViewMode,
     setShowRechargePrice,
     filteredModels,
+    facetModels,
     hasActiveFilters,
     activeFilterCount,
     availableTags,
@@ -219,6 +220,7 @@ export function Pricing() {
               groupRatios={groupRatio}
               tags={availableTags}
               models={models || []}
+              facetModels={facetModels}
               hasActiveFilters={hasActiveFilters}
               onClearFilters={clearFilters}
               className='hover-scrollbar sticky top-20 hidden max-h-[calc(100dvh-6rem)] self-start overflow-y-auto xl:block'
@@ -251,6 +253,7 @@ export function Pricing() {
                 groupRatios={groupRatio}
                 tags={availableTags}
                 models={models || []}
+                facetModels={facetModels}
                 hasActiveFilters={hasActiveFilters}
                 activeFilterCount={activeFilterCount}
                 onClearFilters={clearFilters}

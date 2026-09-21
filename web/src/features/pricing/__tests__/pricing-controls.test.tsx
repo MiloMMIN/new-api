@@ -24,6 +24,18 @@ import {
   PricingToolbar,
   type PricingToolbarProps,
 } from '../components/pricing-toolbar'
+import type { PricingModel } from '../types'
+
+const testModels: PricingModel[] = [
+  {
+    id: 1,
+    model_name: 'm1',
+    quota_type: 0,
+    model_ratio: 1,
+    completion_ratio: 1,
+    enable_groups: ['default', 'premium'],
+  },
+]
 
 function toolbarProps(): PricingToolbarProps {
   return {
@@ -51,7 +63,14 @@ function toolbarProps(): PricingToolbarProps {
     groups: ['default', 'premium'],
     groupRatios: { default: 1, premium: 3 },
     tags: [],
-    models: [],
+    models: testModels,
+    facetModels: {
+      vendor: testModels,
+      group: testModels,
+      quotaType: testModels,
+      endpointType: testModels,
+      tag: testModels,
+    },
     hasActiveFilters: false,
     activeFilterCount: 0,
     onClearFilters: vi.fn(),

@@ -38,7 +38,7 @@ import {
   getQuotaTypeLabels,
 } from '../constants'
 import { hasTaskUsageSchema } from '../lib/dynamic-price'
-import { parseTags } from '../lib/filters'
+import { parseTags, type FacetKey } from '../lib/filters'
 import type { PricingModel, PricingVendor } from '../types'
 
 type FilterOption = {
@@ -72,6 +72,8 @@ export interface PricingSidebarProps {
   groupRatios?: Record<string, number>
   tags: string[]
   models: PricingModel[]
+  /** Per-facet candidate sets: each facet counted with its own filter removed */
+  facetModels: Record<FacetKey, PricingModel[]>
   hasActiveFilters: boolean
   onClearFilters: () => void
   className?: string
@@ -164,14 +166,14 @@ export function PricingSidebar(props: PricingSidebarProps) {
     {
       value: FILTER_ALL,
       label: t('All Vendors'),
-      count: props.models.length,
+      count: props.facetModels.vendor.length,
     },
     ...props.vendors
       .map((vendor) => ({
         value: vendor.name,
         label: vendor.name,
         count: countBy(
-          props.models,
+          props.facetModels.vendor,
           (model) => model.vendor_name === vendor.name
         ),
         icon: vendor.icon ? getLobeIcon(vendor.icon, 14) : undefined,
@@ -183,65 +185,77 @@ export function PricingSidebar(props: PricingSidebarProps) {
     {
       value: FILTER_ALL,
       label: t('All Groups'),
+      count: props.facetModels.group.length,
     },
-    ...props.groups.map((group) => ({
-      value: group,
-      label: group,
-      suffix: formatGroupRatio(props.groupRatios?.[group]),
-    })),
+    ...props.groups
+      .map((group) => ({
+        value: group,
+        label: group,
+        count: countBy(props.facetModels.group, (model) =>
+          model.enable_groups?.includes(group)
+        ),
+        suffix: formatGroupRatio(props.groupRatios?.[group]),
+      }))
+      .filter((group) => group.count > 0),
   ]
 
   const quotaOptions: FilterOption[] = [
     {
       value: QUOTA_TYPES.ALL,
       label: quotaTypeLabels[QUOTA_TYPES.ALL],
-      count: props.models.length,
+      count: props.facetModels.quotaType.length,
     },
-    {
-      value: QUOTA_TYPES.TOKEN,
-      label: quotaTypeLabels[QUOTA_TYPES.TOKEN],
-      count: countBy(
-        props.models,
-        (model) => model.quota_type === 0 && !hasTaskUsageSchema(model)
-      ),
-    },
-    {
-      value: QUOTA_TYPES.REQUEST,
-      label: quotaTypeLabels[QUOTA_TYPES.REQUEST],
-      count: countBy(
-        props.models,
-        (model) => model.quota_type === 1 && !hasTaskUsageSchema(model)
-      ),
-    },
-    {
-      value: QUOTA_TYPES.TASK,
-      label: quotaTypeLabels[QUOTA_TYPES.TASK],
-      count: countBy(props.models, (model) => hasTaskUsageSchema(model)),
-    },
+    ...[
+      {
+        value: QUOTA_TYPES.TOKEN,
+        label: quotaTypeLabels[QUOTA_TYPES.TOKEN],
+        count: countBy(
+          props.facetModels.quotaType,
+          (model) => model.quota_type === 0 && !hasTaskUsageSchema(model)
+        ),
+      },
+      {
+        value: QUOTA_TYPES.REQUEST,
+        label: quotaTypeLabels[QUOTA_TYPES.REQUEST],
+        count: countBy(
+          props.facetModels.quotaType,
+          (model) => model.quota_type === 1 && !hasTaskUsageSchema(model)
+        ),
+      },
+      {
+        value: QUOTA_TYPES.TASK,
+        label: quotaTypeLabels[QUOTA_TYPES.TASK],
+        count: countBy(props.facetModels.quotaType, (model) =>
+          hasTaskUsageSchema(model)
+        ),
+      },
+    ].filter((option) => option.count > 0),
   ]
 
   const tagOptions: FilterOption[] = [
     {
       value: FILTER_ALL,
       label: t('All Tags'),
-      count: props.models.length,
+      count: props.facetModels.tag.length,
     },
-    ...props.tags.map((tag) => ({
-      value: tag,
-      label: tag,
-      count: countBy(props.models, (model) =>
-        parseTags(model.tags)
-          .map((item) => item.toLowerCase())
-          .includes(tag.toLowerCase())
-      ),
-    })),
+    ...props.tags
+      .map((tag) => ({
+        value: tag,
+        label: tag,
+        count: countBy(props.facetModels.tag, (model) =>
+          parseTags(model.tags)
+            .map((item) => item.toLowerCase())
+            .includes(tag.toLowerCase())
+        ),
+      }))
+      .filter((tag) => tag.count > 0),
   ]
 
   const endpointOptions: FilterOption[] = [
     {
       value: ENDPOINT_TYPES.ALL,
       label: endpointTypeLabels[ENDPOINT_TYPES.ALL],
-      count: props.models.length,
+      count: props.facetModels.endpointType.length,
     },
     ...Object.entries(endpointTypeLabels)
       .filter(([value]) => value !== ENDPOINT_TYPES.ALL)
@@ -249,10 +263,11 @@ export function PricingSidebar(props: PricingSidebarProps) {
         value,
         label,
         count: countBy(
-          props.models,
+          props.facetModels.endpointType,
           (model) => model.supported_endpoint_types?.includes(value) ?? false
         ),
-      })),
+      }))
+      .filter((option) => option.count > 0),
   ]
 
   return (

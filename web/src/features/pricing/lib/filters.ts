@@ -138,20 +138,32 @@ export function sortModels(
   return sorted
 }
 
+export type PricingFilters = {
+  search: string
+  vendor: string
+  group: string
+  quotaType: string
+  endpointType: string
+  tag: string
+  sortBy: string
+}
+
+export type FacetKey = 'vendor' | 'group' | 'quotaType' | 'endpointType' | 'tag'
+
+const FACET_ALL_VALUE: Record<FacetKey, string> = {
+  vendor: FILTER_ALL,
+  group: FILTER_ALL,
+  quotaType: QUOTA_TYPES.ALL,
+  endpointType: ENDPOINT_TYPES.ALL,
+  tag: FILTER_ALL,
+}
+
 /**
- * Apply all filters and sorting to models
+ * Apply all filters (no sorting) to models
  */
-export function filterAndSortModels(
+export function filterModels(
   models: PricingModel[],
-  filters: {
-    search: string
-    vendor: string
-    group: string
-    quotaType: string
-    endpointType: string
-    tag: string
-    sortBy: string
-  }
+  filters: PricingFilters
 ): PricingModel[] {
   let result = filterBySearch(models, filters.search)
   result = filterByVendor(result, filters.vendor)
@@ -159,9 +171,31 @@ export function filterAndSortModels(
   result = filterByQuotaType(result, filters.quotaType)
   result = filterByEndpointType(result, filters.endpointType)
   result = filterByTag(result, filters.tag)
-  result = sortModels(result, filters.sortBy)
 
   return result
+}
+
+/**
+ * Apply all filters and sorting to models
+ */
+export function filterAndSortModels(
+  models: PricingModel[],
+  filters: PricingFilters
+): PricingModel[] {
+  return sortModels(filterModels(models, filters), filters.sortBy)
+}
+
+/**
+ * Facet counts: models matching every filter except the given facet's own.
+ * Sidebar chips must be counted against this set so a chip never advertises
+ * a count that would produce an empty result when selected.
+ */
+export function facetFilteredModels(
+  models: PricingModel[],
+  filters: PricingFilters,
+  exclude: FacetKey
+): PricingModel[] {
+  return filterModels(models, { ...filters, [exclude]: FACET_ALL_VALUE[exclude] })
 }
 
 /**
@@ -190,7 +224,7 @@ export function extractAllTags(models: PricingModel[]): string[] {
     }
   })
 
-  return Array.from(tagSet).sort((a, b) => a.localeCompare(b))
+  return [...tagSet].sort((a, b) => a.localeCompare(b))
 }
 
 /**
