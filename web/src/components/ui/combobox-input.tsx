@@ -140,10 +140,14 @@ export function ComboboxInput({
       input.closest<HTMLElement>('[role="dialog"]') ?? document.body
     const measure = () => {
       const rect = input.getBoundingClientRect()
+      // The dropdown is portaled into the container, so position it in the
+      // container's own coordinate space — a transformed dialog ancestor makes
+      // viewport coordinates land at the wrong place.
+      const cRect = container.getBoundingClientRect()
       setDropdown({
         container,
-        top: rect.bottom + 4,
-        left: rect.left,
+        top: rect.bottom - cRect.top + container.scrollTop + 4,
+        left: rect.left - cRect.left + container.scrollLeft,
         width: rect.width,
       })
     }
@@ -290,7 +294,7 @@ export function ComboboxInput({
           <div
             ref={dropdownRef}
             style={{
-              position: 'fixed',
+              position: 'absolute',
               top: dropdown.top,
               left: dropdown.left,
               width: dropdown.width,
