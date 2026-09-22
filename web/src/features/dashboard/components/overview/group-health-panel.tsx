@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { Activity } from 'lucide-react'
+import { Activity, CheckCircle2, Database, Zap } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -31,6 +31,7 @@ import {
   getSlotDotClass,
   getSuccessRateLevel,
   getSuccessRateTextClass,
+  getTtftSlotClass,
 } from '@/features/performance-metrics/lib/format'
 import {
   fetchGroupHealth,
@@ -96,6 +97,18 @@ export function GroupHealthCard(props: { item: GroupHealthItem }) {
   const { t } = useTranslation()
   const item = props.item
 
+  const agoLabel = (() => {
+    if (item.lastTs == null) return null
+    const mins = Math.max(
+      1,
+      Math.round((Date.now() - item.lastTs * 1000) / 60_000)
+    )
+    if (mins >= 60) {
+      return t('{{count}} hours ago', { count: Math.floor(mins / 60) })
+    }
+    return t('{{count}} minutes ago', { count: mins })
+  })()
+
   return (
     <div className='bg-muted/30 rounded-xl border p-3'>
       <div className='flex items-center gap-2'>
@@ -107,8 +120,13 @@ export function GroupHealthCard(props: { item: GroupHealthItem }) {
             ({item.ratio}x)
           </span>
         )}
-        <span className='ml-auto shrink-0'>
+        <span className='ml-auto flex shrink-0 items-center gap-1.5'>
           <GroupStatusBadge item={item} />
+          {agoLabel && (
+            <span className='text-muted-foreground text-[11px] tabular-nums'>
+              {agoLabel}
+            </span>
+          )}
         </span>
       </div>
       {item.desc && (
@@ -117,52 +135,49 @@ export function GroupHealthCard(props: { item: GroupHealthItem }) {
         </div>
       )}
 
-      <div className='mt-2 flex gap-[3px]' aria-hidden='true'>
-        {item.slots.map((slot) => (
-          <span
-            key={slot.ts}
-            className={cn(
-              'h-2.5 min-w-1 flex-1 rounded-[2px]',
-              getSlotDotClass(slot.successRate)
-            )}
-            title={
-              slot.successRate != null
-                ? `${new Date(slot.ts * 1000).toLocaleString()} · ${formatUptimePct(slot.successRate)}`
-                : `${new Date(slot.ts * 1000).toLocaleString()} · ${t('No data')}`
-            }
-          />
-        ))}
+      <div className='mt-2.5 grid grid-cols-3 gap-2'>
+        <div className='min-w-0'>
+          <div className='flex items-center gap-1'>
+            <Zap className='size-3.5 shrink-0 text-amber-500' />
+            <span className='truncate font-mono text-sm font-semibold tabular-nums'>
+              {item.ttftMs != null ? formatLatency(item.ttftMs) : '—'}
+            </span>
+          </div>
+          <div className='text-muted-foreground text-[11px]'>
+            {t('First token')}
+          </div>
+        </div>
+        <div className='min-w-0'>
+          <div className='flex items-center gap-1'>
+            <CheckCircle2 className='size-3.5 shrink-0 text-emerald-500' />
+            <span
+              className={cn(
+                'truncate font-mono text-sm font-semibold tabular-nums',
+                item.successRate != null &&
+                  getSuccessRateTextClass(item.successRate)
+              )}
+            >
+              {item.successRate != null
+                ? formatUptimePct(item.successRate)
+                : '—'}
+            </span>
+          </div>
+          <div className='text-muted-foreground text-[11px]'>
+            {t('Success rate')}
+          </div>
+        </div>
+        <div className='min-w-0'>
+          <div className='flex items-center gap-1'>
+            <Database className='size-3.5 shrink-0 text-sky-500' />
+            <span className='truncate font-mono text-sm font-semibold tabular-nums'>
+              {item.cacheRate != null ? formatUptimePct(item.cacheRate) : '—'}
+            </span>
+          </div>
+          <div className='text-muted-foreground text-[11px]'>{t('Cache')}</div>
+        </div>
       </div>
 
       <div className='text-muted-foreground mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]'>
-        <span>
-          {t('Success rate')}{' '}
-          <b
-            className={cn(
-              'font-mono font-semibold tabular-nums',
-              item.successRate != null &&
-                getSuccessRateTextClass(item.successRate)
-            )}
-          >
-            {item.successRate != null
-              ? formatUptimePct(item.successRate)
-              : '—'}
-          </b>
-        </span>
-        <span>
-          {t('Error rate')}{' '}
-          <b className='font-mono font-semibold tabular-nums'>
-            {item.successRate != null
-              ? formatUptimePct(100 - item.successRate)
-              : '—'}
-          </b>
-        </span>
-        <span>
-          {t('TTFT')}{' '}
-          <b className='font-mono font-semibold tabular-nums'>
-            {item.ttftMs != null ? formatLatency(item.ttftMs) : '—'}
-          </b>
-        </span>
         <span>
           {t('Average latency')}{' '}
           <b className='font-mono font-semibold tabular-nums'>
@@ -175,6 +190,41 @@ export function GroupHealthCard(props: { item: GroupHealthItem }) {
             {item.tps != null ? formatThroughput(item.tps) : '—'}
           </b>
         </span>
+        <span>
+          {t('Error rate')}{' '}
+          <b className='font-mono font-semibold tabular-nums'>
+            {item.successRate != null
+              ? formatUptimePct(100 - item.successRate)
+              : '—'}
+          </b>
+        </span>
+      </div>
+
+      <div className='text-muted-foreground mt-2.5 text-[11px]'>
+        {t('Recent first-token status')}
+      </div>
+      <div className='mt-1 flex gap-[3px]' aria-hidden='true'>
+        {item.slots.map((slot) => (
+          <span
+            key={slot.ts}
+            data-slot='ttft-slot'
+            className={cn(
+              'h-2.5 min-w-1 flex-1 rounded-[2px]',
+              slot.ttftMs != null
+                ? getTtftSlotClass(slot.ttftMs)
+                : getSlotDotClass(slot.successRate)
+            )}
+            title={
+              slot.successRate != null
+                ? `${new Date(slot.ts * 1000).toLocaleString()} · ${formatUptimePct(slot.successRate)}${
+                    slot.ttftMs != null
+                      ? ` · TTFT ${formatLatency(slot.ttftMs)}`
+                      : ''
+                  }`
+                : `${new Date(slot.ts * 1000).toLocaleString()} · ${t('No data')}`
+            }
+          />
+        ))}
       </div>
     </div>
   )

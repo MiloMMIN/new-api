@@ -4672,6 +4672,7 @@
     "Receive Upstream Model Update Notifications": "アップストリームモデル更新通知を受け取る",
     "Received": "受信済み",
     "Received amount": "受け取り額",
+    "Recent first-token status": "直近の先頭トークン状態",
     "Recent maintenance tasks running across instances and their execution status.": "各インスタンスで実行された最近のメンテナンスタスクとその実行状態。",
     "Recent success-rate samples; gray bars indicate missing data.": "直近の成功率のサンプルです。灰色のバーはデータがないことを示します。",
     "Recently completed or failed system task runs.": "最近完了または失敗したシステムタスク実行です。",

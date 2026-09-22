@@ -3,6 +3,7 @@ package perfmetrics
 import (
 	"context"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -109,6 +110,20 @@ func TestHourlySuccessSeriesWeightsSmallerBuckets(t *testing.T) {
 	assert.Equal(t, []SuccessRatePoint{{Ts: 3600, SuccessRate: 99.01}, {Ts: 7200, SuccessRate: 100}}, points)
 }
 
+func TestCacheHitCounters(t *testing.T) {
+	bucket := &atomicBucket{}
+	bucket.add(Sample{Success: true, CacheHit: true})
+	bucket.add(Sample{Success: true})
+	bucket.add(Sample{CacheHit: true})
+	snap := bucket.snapshot()
+	assert.Equal(t, int64(3), snap.requestCount)
+	assert.Equal(t, int64(2), snap.cacheHits)
+	assert.Equal(t, 0.0, cacheHitRate(counters{}))
+	assert.Equal(t, 0.0, cacheHitRate(counters{requestCount: 4}))
+	assert.Equal(t, 50.0, cacheHitRate(counters{requestCount: 4, cacheHits: 2}))
+	assert.Equal(t, 66.67, math.Round(cacheHitRate(counters{requestCount: 3, cacheHits: 2})*100)/100)
+}
+
 // TEST_PERF_MYSQL_DSN / TEST_PERF_POSTGRES_DSN optionally run the aggregation
 // against isolated real MySQL/PostgreSQL databases.
 func TestPerformanceAggregationAndFlush(t *testing.T) {
@@ -146,7 +161,7 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 			hour := now.Unix() - now.Unix()%3600 - 3600
 			// Historical counters remain usable without reclassification or migration.
 			for _, row := range []model.PerfMetric{
-				{ModelName: "test-model", Group: "a", BucketTs: hour, RequestCount: 100, SuccessCount: 100, TotalLatencyMs: 100000, TtftCount: 100, TtftSumMs: 10000, OutputTokens: 200, GenerationMs: 40000},
+				{ModelName: "test-model", Group: "a", BucketTs: hour, RequestCount: 100, SuccessCount: 100, TotalLatencyMs: 100000, TtftCount: 100, TtftSumMs: 10000, OutputTokens: 200, GenerationMs: 40000, CacheHits: 50},
 				{ModelName: "test-model", Group: "inactive", BucketTs: hour, RequestCount: 100},
 				{ModelName: "test-model", Group: "a", BucketTs: start - 3600, RequestCount: 100},
 			} {
@@ -159,6 +174,7 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, businessRejected.Summary)
 			assert.Equal(t, 100.0, businessRejected.Summary.SuccessRate)
+			assert.Equal(t, 50.0, businessRejected.Summary.CacheHitRate)
 
 			failure := &atomicBucket{}
 			failure.add(Sample{LatencyMs: 2000})
@@ -166,18 +182,22 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 			before, err := Query(QueryParams{Model: "test-model", Hours: 24, AllowedGroups: groups})
 			require.NoError(t, err)
 			require.NotNil(t, before.Summary)
-			assert.Equal(t, Summary{SuccessRate: 99.01, AvgLatencyMs: 1009, AvgTps: 5}, *before.Summary)
+			assert.Equal(t, Summary{SuccessRate: 99.01, AvgLatencyMs: 1009, AvgTps: 5, CacheHitRate: 49.5}, *before.Summary)
 			assert.Equal(t, start, before.WindowStart)
 			require.Len(t, before.Series, 1)
 			assert.Equal(t, hour, before.Series[0].Ts)
 			assert.InDelta(t, 99.01, before.Series[0].SuccessRate, 0.01)
+			assert.InDelta(t, 49.5, before.Series[0].CacheHitRate, 0.01)
 			require.Len(t, before.Groups, 2)
+			assert.Equal(t, 50.0, before.Groups[0].CacheHitRate)
+			assert.Equal(t, 0.0, before.Groups[1].CacheHitRate)
 
 			summary, err := QuerySummaryAll(24, groups)
 			require.NoError(t, err)
 			assert.Equal(t, before.Summary, summary.Summary)
 			require.Len(t, summary.Models, 1)
 			assert.Equal(t, 99.01, summary.Models[0].SuccessRate)
+			assert.Equal(t, 49.5, summary.Models[0].CacheHitRate)
 			assert.Equal(t, 99.01, summary.Models[0].RecentSuccessSeries[0].SuccessRate)
 			encoded, err := common.Marshal(summary)
 			require.NoError(t, err)
@@ -207,7 +227,9 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 			combined, err := QuerySummaryAll(24, groups)
 			require.NoError(t, err)
 			assert.Equal(t, 98.04, combined.Summary.SuccessRate)
+			assert.Equal(t, 49.02, combined.Summary.CacheHitRate)
 			assert.Equal(t, 99.01, combined.Models[0].SuccessRate)
+			assert.Equal(t, 49.5, combined.Models[0].CacheHitRate)
 		})
 	}
 }

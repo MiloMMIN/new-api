@@ -197,6 +197,10 @@ type RelayInfo struct {
 	// the request boundary, independently of billing success or failure.
 	PerformanceOutputTokens      int64
 	PerformanceBusinessRejection bool
+	// PerformanceCacheHit mirrors the channel-affinity hit signal: settlement
+	// sets it when the effective usage reports any cached/prompt-cache-hit
+	// tokens. Sampled alongside PerformanceOutputTokens for the pool monitor.
+	PerformanceCacheHit bool
 
 	// convOptions caches the converter settings snapshot (see ConvOptions).
 	convOptions *convmeta.Options

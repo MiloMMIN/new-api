@@ -4672,6 +4672,7 @@
     "Receive Upstream Model Update Notifications": "Получать уведомления об обновлениях вышестоящих моделей",
     "Received": "Получено",
     "Received amount": "Полученная сумма",
+    "Recent first-token status": "Недавний статус первого токена",
     "Recent maintenance tasks running across instances and their execution status.": "Недавние задачи обслуживания, выполняемые на всех экземплярах, и их статус выполнения.",
     "Recent success-rate samples; gray bars indicate missing data.": "Последние замеры успешности запросов; серые полоски означают отсутствие данных.",
     "Recently completed or failed system task runs.": "Недавние запуски системных задач, завершенные или завершившиеся с ошибкой.",

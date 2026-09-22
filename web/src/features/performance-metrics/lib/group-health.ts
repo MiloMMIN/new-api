@@ -35,15 +35,20 @@ const HOUR_MS = 3_600_000
  * hour, newest on the right. Hours without any sample become null slots so
  * the uptime strip renders a continuous timeline (gray gaps).
  */
-function buildSlots(
-  byTs: Map<number, { sum: number; count: number }>
-): GroupStatusSlot[] {
-  const byHour = new Map<number, { sum: number; count: number }>()
+function buildSlots(byTs: Map<number, SlotCell>): GroupStatusSlot[] {
+  const byHour = new Map<number, SlotCell>()
   for (const [ts, cell] of byTs) {
     const hour = Math.floor(ts / 3600)
-    const agg = byHour.get(hour) ?? { sum: 0, count: 0 }
+    const agg = byHour.get(hour) ?? {
+      sum: 0,
+      count: 0,
+      ttftSum: 0,
+      ttftCount: 0,
+    }
     agg.sum += cell.sum
     agg.count += cell.count
+    agg.ttftSum += cell.ttftSum
+    agg.ttftCount += cell.ttftCount
     byHour.set(hour, agg)
   }
   const nowHour = Math.floor(Date.now() / HOUR_MS)
@@ -54,6 +59,7 @@ function buildSlots(
     slots.push({
       ts: hour * 3600,
       successRate: agg ? agg.sum / agg.count : null,
+      ttftMs: agg && agg.ttftCount > 0 ? agg.ttftSum / agg.ttftCount : null,
     })
   }
   return slots
@@ -64,6 +70,7 @@ export type GroupStatusSlot = {
   /** hour-aligned unix seconds */
   ts: number
   successRate: number | null
+  ttftMs: number | null
 }
 
 export type GroupHealthItem = {
@@ -74,7 +81,17 @@ export type GroupHealthItem = {
   ttftMs: number | null
   latencyMs: number | null
   tps: number | null
+  cacheRate: number | null
+  /** newest slot (unix seconds) that has traffic; null when never sampled */
+  lastTs: number | null
   slots: GroupStatusSlot[]
+}
+
+type SlotCell = {
+  sum: number
+  count: number
+  ttftSum: number
+  ttftCount: number
 }
 
 type GroupBucket = {
@@ -82,7 +99,8 @@ type GroupBucket = {
   ttfts: number[]
   latencies: number[]
   tpsList: number[]
-  byTs: Map<number, { sum: number; count: number }>
+  cacheRates: number[]
+  byTs: Map<number, SlotCell>
 }
 
 function newBucket(): GroupBucket {
@@ -91,6 +109,7 @@ function newBucket(): GroupBucket {
     ttfts: [],
     latencies: [],
     tpsList: [],
+    cacheRates: [],
     byTs: new Map(),
   }
 }
@@ -137,11 +156,23 @@ export async function fetchGroupHealth(): Promise<GroupHealthItem[]> {
       if (Number.isFinite(group.avg_tps) && group.avg_tps > 0) {
         bucket.tpsList.push(group.avg_tps)
       }
+      if (Number.isFinite(group.cache_hit_rate)) {
+        bucket.cacheRates.push(group.cache_hit_rate)
+      }
       for (const point of group.series ?? []) {
         if (!Number.isFinite(point.success_rate)) continue
-        const cell = bucket.byTs.get(point.ts) ?? { sum: 0, count: 0 }
+        const cell = bucket.byTs.get(point.ts) ?? {
+          sum: 0,
+          count: 0,
+          ttftSum: 0,
+          ttftCount: 0,
+        }
         cell.sum += point.success_rate
         cell.count += 1
+        if (Number.isFinite(point.avg_ttft_ms) && point.avg_ttft_ms > 0) {
+          cell.ttftSum += point.avg_ttft_ms
+          cell.ttftCount += 1
+        }
         bucket.byTs.set(point.ts, cell)
       }
     }
@@ -155,6 +186,12 @@ export async function fetchGroupHealth(): Promise<GroupHealthItem[]> {
     .map((name) => {
       const bucket = buckets.get(name)
       const info = meta[name]
+      const slots = buildSlots(bucket?.byTs ?? new Map())
+      const lastTs = slots.reduce(
+        (latest, slot) =>
+          slot.successRate !== null && slot.ts > latest ? slot.ts : latest,
+        0
+      )
       return {
         name,
         desc: info?.desc ?? '',
@@ -163,7 +200,9 @@ export async function fetchGroupHealth(): Promise<GroupHealthItem[]> {
         ttftMs: bucket ? meanOrNull(bucket.ttfts) : null,
         latencyMs: bucket ? meanOrNull(bucket.latencies) : null,
         tps: bucket ? meanOrNull(bucket.tpsList) : null,
-        slots: buildSlots(bucket?.byTs ?? new Map()),
+        cacheRate: bucket ? meanOrNull(bucket.cacheRates) : null,
+        lastTs: lastTs > 0 ? lastTs : null,
+        slots,
       }
     })
   // Groups with live metrics first (best performing on top), then the rest.

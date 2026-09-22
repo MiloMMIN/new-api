@@ -4672,6 +4672,7 @@
     "Receive Upstream Model Update Notifications": "Recevoir les notifications de mise à jour des modèles en amont",
     "Received": "Reçu",
     "Received amount": "Montant reçu",
+    "Recent first-token status": "Statut récent du 1er token",
     "Recent maintenance tasks running across instances and their execution status.": "Tâches de maintenance récentes exécutées sur les instances et leur état d'exécution.",
     "Recent success-rate samples; gray bars indicate missing data.": "Échantillons récents du taux de réussite ; les barres grises indiquent des données manquantes.",
     "Recently completed or failed system task runs.": "Exécutions de tâches système récemment terminées ou échouées.",

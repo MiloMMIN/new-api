@@ -16,6 +16,7 @@ type Sample struct {
 	Success      bool
 	OutputTokens int64
 	GenerationMs int64
+	CacheHit     bool
 }
 
 type QueryParams struct {
@@ -32,6 +33,7 @@ type Summary struct {
 	AvgLatencyMs int64   `json:"avg_latency_ms"`
 	SuccessRate  float64 `json:"success_rate"`
 	AvgTps       float64 `json:"avg_tps"`
+	CacheHitRate float64 `json:"cache_hit_rate"`
 }
 
 type BucketPoint struct {
@@ -40,6 +42,7 @@ type BucketPoint struct {
 	AvgLatencyMs int64   `json:"avg_latency_ms"`
 	SuccessRate  float64 `json:"success_rate"`
 	AvgTps       float64 `json:"avg_tps"`
+	CacheHitRate float64 `json:"cache_hit_rate"`
 }
 
 type GroupResult struct {
@@ -48,6 +51,7 @@ type GroupResult struct {
 	AvgLatencyMs int64         `json:"avg_latency_ms"`
 	SuccessRate  float64       `json:"success_rate"`
 	AvgTps       float64       `json:"avg_tps"`
+	CacheHitRate float64       `json:"cache_hit_rate"`
 	Series       []BucketPoint `json:"series"`
 }
 
@@ -71,6 +75,7 @@ type ModelSummary struct {
 	AvgLatencyMs        int64              `json:"avg_latency_ms"`
 	SuccessRate         float64            `json:"success_rate"`
 	AvgTps              float64            `json:"avg_tps"`
+	CacheHitRate        float64            `json:"cache_hit_rate"`
 	RecentSuccessSeries []SuccessRatePoint `json:"recent_success_series,omitempty"`
 	RequestCount        int64              `json:"-"`
 }
@@ -96,6 +101,7 @@ type counters struct {
 	ttftCount      int64
 	outputTokens   int64
 	generationMs   int64
+	cacheHits      int64
 }
 
 type atomicBucket struct {
@@ -106,6 +112,7 @@ type atomicBucket struct {
 	ttftCount      atomic.Int64
 	outputTokens   atomic.Int64
 	generationMs   atomic.Int64
+	cacheHits      atomic.Int64
 }
 
 func (b *atomicBucket) add(sample Sample) {
@@ -124,6 +131,9 @@ func (b *atomicBucket) add(sample Sample) {
 		b.outputTokens.Add(sample.OutputTokens)
 		b.generationMs.Add(sample.GenerationMs)
 	}
+	if sample.CacheHit {
+		b.cacheHits.Add(1)
+	}
 }
 
 func (b *atomicBucket) snapshot() counters {
@@ -135,6 +145,7 @@ func (b *atomicBucket) snapshot() counters {
 		ttftCount:      b.ttftCount.Load(),
 		outputTokens:   b.outputTokens.Load(),
 		generationMs:   b.generationMs.Load(),
+		cacheHits:      b.cacheHits.Load(),
 	}
 }
 
@@ -147,6 +158,7 @@ func (b *atomicBucket) drain() counters {
 		ttftCount:      b.ttftCount.Swap(0),
 		outputTokens:   b.outputTokens.Swap(0),
 		generationMs:   b.generationMs.Swap(0),
+		cacheHits:      b.cacheHits.Swap(0),
 	}
 }
 
@@ -171,5 +183,8 @@ func (b *atomicBucket) addCounters(c counters) {
 	}
 	if c.generationMs != 0 {
 		b.generationMs.Add(c.generationMs)
+	}
+	if c.cacheHits != 0 {
+		b.cacheHits.Add(c.cacheHits)
 	}
 }
