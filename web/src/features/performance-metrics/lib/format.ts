@@ -104,6 +104,23 @@ export function getSlotDotClass(rate: number | null): string {
   return 'bg-red-500'
 }
 
+const TTFT_GOOD_MAX_MS = 3_000
+const TTFT_WARN_MAX_MS = 10_000
+
+/**
+ * First-token strip square color: green when the hour's average TTFT is
+ * snappy (< 3s), amber when noticeably slow (< 10s), red beyond that,
+ * gray when the slot saw no traffic or no TTFT samples.
+ */
+export function getTtftSlotClass(ttftMs: number | null): string {
+  if (ttftMs == null || !Number.isFinite(ttftMs)) {
+    return 'bg-muted-foreground/25'
+  }
+  if (ttftMs <= TTFT_GOOD_MAX_MS) return 'bg-emerald-500'
+  if (ttftMs <= TTFT_WARN_MAX_MS) return 'bg-amber-500'
+  return 'bg-red-500'
+}
+
 export function getSuccessRateColor(rate: number): string {
   return SUCCESS_RATE_HEX_COLOR[getSuccessRateLevel(rate)]
 }

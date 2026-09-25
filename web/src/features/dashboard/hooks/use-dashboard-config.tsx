@@ -25,6 +25,7 @@ import {
   Flame,
   TrendingUp,
   Activity,
+  Timer,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -94,6 +95,7 @@ export function useSummaryCardsConfig(totals: {
   todayUsageDisplay: string
   usedDisplay: string
   requestCountDisplay: string
+  avgLatencyDisplay: string
   currencyLabel: string
   currencyEnabled: boolean
 }) {
@@ -124,6 +126,13 @@ export function useSummaryCardsConfig(totals: {
       value: totals.requestCountDisplay,
       description: t('Total requests made'),
       icon: Activity,
+    },
+    {
+      key: 'avgLatency',
+      title: t('Average latency'),
+      value: totals.avgLatencyDisplay,
+      description: t('Average response time in the last 24 hours'),
+      icon: Timer,
     },
   ]
 }

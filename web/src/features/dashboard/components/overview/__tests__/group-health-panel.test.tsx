@@ -38,11 +38,16 @@ function groupResult(overrides: Record<string, unknown> = {}) {
   }
 }
 
+// Hour-aligned timestamps inside the trailing 24h window so the status
+// strip renders real colored cells instead of all-gray gaps.
+const nowHourTs = () => Math.floor(Date.now() / 3_600_000) * 3_600
+
 function mockApis({
   failAll = false,
 }: { failAll?: boolean } = {}) {
   vi.spyOn(api, 'get').mockImplementation(async (url, config) => {
     if (failAll) throw new Error('unavailable')
+    const now = nowHourTs()
     switch (url) {
       case '/api/user/self/groups':
         return {
@@ -74,9 +79,20 @@ function mockApis({
                 model_name: 'model-a',
                 groups: [
                   groupResult({
+                    cache_hit_rate: 25,
                     series: [
-                      { ts: 1000, success_rate: 100 },
-                      { ts: 2000, success_rate: 50 },
+                      {
+                        ts: now - 3600,
+                        success_rate: 100,
+                        avg_ttft_ms: 200,
+                        cache_hit_rate: 25,
+                      },
+                      {
+                        ts: now,
+                        success_rate: 50,
+                        avg_ttft_ms: 400,
+                        cache_hit_rate: 25,
+                      },
                     ],
                   }),
                   groupResult({
@@ -84,7 +100,15 @@ function mockApis({
                     success_rate: 60,
                     avg_ttft_ms: 400,
                     avg_latency_ms: 900,
-                    series: [{ ts: 1000, success_rate: 60 }],
+                    cache_hit_rate: 30,
+                    series: [
+                      {
+                        ts: now,
+                        success_rate: 60,
+                        avg_ttft_ms: 12000,
+                        cache_hit_rate: 30,
+                      },
+                    ],
                   }),
                 ],
               },
@@ -102,7 +126,15 @@ function mockApis({
                     success_rate: 80,
                     avg_ttft_ms: 400,
                     avg_latency_ms: 700,
-                    series: [{ ts: 1000, success_rate: 80 }],
+                    cache_hit_rate: 75,
+                    series: [
+                      {
+                        ts: now - 3600,
+                        success_rate: 80,
+                        avg_ttft_ms: 8000,
+                        cache_hit_rate: 75,
+                      },
+                    ],
                   }),
                 ],
               },
@@ -157,8 +189,21 @@ describe('GroupHealthPanel', () => {
     expect(defaultCard).toHaveTextContent('90.00%')
     expect(defaultCard).toHaveTextContent('10.00%')
     expect(defaultCard).toHaveTextContent('Available')
-    // Merged series: ts=1000 → (100+80)/2, ts=2000 → 50 → two squares.
-    expect(defaultCard?.querySelectorAll('.size-2')).toHaveLength(2)
+    // Headline stats: merged TTFT (200+400)/2 and cache hit rate (25+75)/2.
+    expect(defaultCard).toHaveTextContent('First token')
+    expect(defaultCard).toHaveTextContent('300ms')
+    expect(defaultCard).toHaveTextContent('Cache')
+    expect(defaultCard).toHaveTextContent('50.00%')
+    expect(defaultCard).toHaveTextContent(/\d+ (minutes|hours) ago/)
+    // The strip always renders the full 24-hour window; cells without
+    // traffic stay gray while sampled hours pick up their TTFT level.
+    const slots = defaultCard?.querySelectorAll("[data-slot='ttft-slot']")
+    expect(slots).toHaveLength(24)
+    expect(slots?.[0]).toHaveClass('bg-muted-foreground/25')
+    // Previous hour merges TTFT (200+8000)/2 = 4100ms → degraded amber;
+    // the current hour stays green at 400ms.
+    expect(slots?.[22]).toHaveClass('bg-amber-500')
+    expect(slots?.[23]).toHaveClass('bg-emerald-500')
     expect(container.querySelectorAll("[data-slot='skeleton']").length).toBe(0)
   })
 
@@ -171,6 +216,11 @@ describe('GroupHealthPanel', () => {
     expect(vipCard).toHaveTextContent('(0.55x)')
     expect(vipCard).toHaveTextContent('Down')
     expect(vipCard).toHaveTextContent('60.00%')
+    expect(vipCard).toHaveTextContent('400ms')
+    expect(vipCard).toHaveTextContent('30.00%')
+    // 12s first-token average marks the freshest slot as critically slow.
+    const vipSlots = vipCard?.querySelectorAll("[data-slot='ttft-slot']")
+    expect(vipSlots?.[23]).toHaveClass('bg-red-500')
 
     const spareName = screen.getByText('spare')
     const spareCard = spareName.closest('div.rounded-xl')
