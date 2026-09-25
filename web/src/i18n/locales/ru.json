@@ -719,6 +719,7 @@
     "Available Rewards": "Доступные награды",
     "Available variables: {{provider}}, {{field}}, {{op}}, {{required}}, {{current}}, and paths such as {{current.roles}}.": "Доступные переменные: {{provider}}, {{field}}, {{op}}, {{required}}, {{current}}, а также пути вида {{current.roles}}.",
     "Average latency": "Средняя задержка",
+    "Average response time in the last 24 hours": "Среднее время ответа за последние 24 часа",
     "Average latency, TTFT, and success rate by group": "Средняя задержка, TTFT и доля успешных запросов по группам",
     "Average latency, TTFT, TPS, and success rate": "Средняя задержка, TTFT, TPS и доля успешных запросов",
     "Average RPM": "Среднее число оборотов в минуту",

@@ -719,6 +719,7 @@
     "Available Rewards": "利用可能な報酬",
     "Available variables: {{provider}}, {{field}}, {{op}}, {{required}}, {{current}}, and paths such as {{current.roles}}.": "使用可能な変数：{{provider}}、{{field}}、{{op}}、{{required}}、{{current}}、および {{current.roles}} のようなパス。",
     "Average latency": "平均レイテンシ",
+    "Average response time in the last 24 hours": "過去24時間の平均応答時間",
     "Average latency, TTFT, and success rate by group": "グループ別の平均レイテンシ、TTFT、成功率",
     "Average latency, TTFT, TPS, and success rate": "平均レイテンシ、TTFT、TPS、成功率",
     "Average RPM": "平均RPM",

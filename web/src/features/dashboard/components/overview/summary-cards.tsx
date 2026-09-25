@@ -27,6 +27,8 @@ import { Button } from '@/components/ui/button'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
+import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
+import { formatLatency } from '@/features/performance-metrics/lib/format'
 import { useStatus } from '@/hooks/use-status'
 import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
 import { formatNumber, formatQuota } from '@/lib/format'
@@ -166,12 +168,23 @@ export function SummaryCards() {
     staleTime: 60 * 1000,
   })
 
+  const perfSummaryQuery = useQuery({
+    queryKey: ['perf-metrics-summary', 24],
+    queryFn: async () =>
+      requireServerSuccess(await getPerfMetricsSummary(24)),
+    staleTime: 60 * 1000,
+    retry: false,
+  })
+
   const summaryValues = useMemo(() => {
     return {
       usedDisplay: formatQuota(usedQuota),
       requestCountDisplay: formatNumber(requestCount),
+      avgLatencyDisplay: formatLatency(
+        perfSummaryQuery.data?.data.summary?.avg_latency_ms ?? 0
+      ),
     }
-  }, [requestCount, usedQuota])
+  }, [requestCount, usedQuota, perfSummaryQuery.data])
 
   const currencyEnabledFromStore = isCurrencyDisplayEnabled()
   const statusCurrencyFlag =
@@ -235,7 +248,7 @@ export function SummaryCards() {
     currencyEnabled,
     currencyLabel,
   }).map((config, index) => {
-    const tones = ['accent-1', 'accent-2', 'accent-3'] as const
+    const tones = ['accent-1', 'accent-2', 'accent-3', 'accent-2'] as const
 
     return {
       key: config.key,
@@ -266,7 +279,7 @@ export function SummaryCards() {
               </p>
             </div>
           </div>
-          <StaggerContainer className='grid grid-cols-3 gap-1.5 sm:gap-3'>
+          <StaggerContainer className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
             {items.map((it) => (
               <StaggerItem
                 key={it.key}

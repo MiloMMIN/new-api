@@ -719,6 +719,7 @@
     "Available Rewards": "可用獎勵",
     "Available variables: {{provider}}, {{field}}, {{op}}, {{required}}, {{current}}, and paths such as {{current.roles}}.": "可用變數：{{provider}}、{{field}}、{{op}}、{{required}}、{{current}}，以及 {{current.roles}} 等路徑變數。",
     "Average latency": "平均延遲",
+    "Average response time in the last 24 hours": "近 24 小時平均響應時間",
     "Average latency, TTFT, and success rate by group": "各分組的平均延遲、首 Token 延遲和成功率",
     "Average latency, TTFT, TPS, and success rate": "平均延遲、TTFT、TPS 和成功率",
     "Average RPM": "平均 RPM",

@@ -719,6 +719,7 @@
     "Available Rewards": "Phần thưởng hiện có",
     "Available variables: {{provider}}, {{field}}, {{op}}, {{required}}, {{current}}, and paths such as {{current.roles}}.": "Các biến khả dụng: {{provider}}, {{field}}, {{op}}, {{required}}, {{current}} và các đường dẫn như {{current.roles}}.",
     "Average latency": "Độ trễ trung bình",
+    "Average response time in the last 24 hours": "Thời gian phản hồi trung bình trong 24 giờ qua",
     "Average latency, TTFT, and success rate by group": "Độ trễ trung bình, TTFT và tỷ lệ thành công theo nhóm",
     "Average latency, TTFT, TPS, and success rate": "Độ trễ trung bình, TTFT, TPS và tỷ lệ thành công",
     "Average RPM": "RPM trung bình",
