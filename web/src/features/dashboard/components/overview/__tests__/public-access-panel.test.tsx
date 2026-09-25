@@ -95,9 +95,7 @@ describe('PublicAccessPanel', () => {
     })
     expect(link).toHaveAttribute('href', 'https://api.example.com')
     expect(link).toHaveAttribute('target', '_blank')
-    expect(
-      screen.getByRole('button', { name: 'Copy URL' })
-    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy URL' })).toBeInTheDocument()
   })
 
   it('shows unreachable when the tunnel response is not a status payload', async () => {
@@ -105,8 +103,12 @@ describe('PublicAccessPanel', () => {
       tunnel: { success: false, message: 'farm unreachable' },
     })
     renderPanel()
-    expect(await screen.findByText('Farm manager unreachable')).toBeInTheDocument()
-    expect(screen.queryByText('Requires Docker deployment')).not.toBeInTheDocument()
+    expect(
+      await screen.findByText('Farm manager unreachable')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Requires Docker deployment')
+    ).not.toBeInTheDocument()
   })
 
   it('hides the public url row when farm reports none', async () => {
@@ -139,9 +141,7 @@ describe('PublicAccessPanel', () => {
     })
     renderPanel()
     expect(await screen.findByText('Docker unavailable')).toBeInTheDocument()
-    expect(
-      screen.getByText('Requires Docker deployment')
-    ).toBeInTheDocument()
+    expect(screen.getByText('Requires Docker deployment')).toBeInTheDocument()
     expect(screen.queryByText('Start tunnel')).not.toBeInTheDocument()
   })
 
@@ -151,5 +151,48 @@ describe('PublicAccessPanel', () => {
     expect(await screen.findByText('HTTP/2 (h2c)')).toBeInTheDocument()
     const sw = document.querySelector("[data-slot='switch']")
     expect(sw).toHaveAttribute('data-checked')
+  })
+
+  it('renders extra_urls as read-only links with labels', async () => {
+    mockApis({
+      tunnel: {
+        available: true,
+        state: 'running',
+        token_set: true,
+        public_url: 'https://api.example.com',
+        extra_urls: [
+          { label: 'frp整站', url: 'https://apifarm.mouow.asia' },
+          { label: 'frpAPI', url: 'https://mouow.asia/api/v1' },
+        ],
+      },
+    })
+    renderPanel()
+    const a = await screen.findByRole('link', {
+      name: /apifarm\.mouow\.asia/,
+    })
+    expect(a).toHaveAttribute('href', 'https://apifarm.mouow.asia')
+    expect(screen.getByText('frp整站')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /mouow\.asia\/api\/v1/ })
+    ).toHaveAttribute('href', 'https://mouow.asia/api/v1')
+  })
+
+  it('hides the extra_urls block when empty', async () => {
+    mockApis({
+      tunnel: {
+        available: true,
+        state: 'running',
+        token_set: true,
+        public_url: 'https://api.example.com',
+        extra_urls: [],
+      },
+    })
+    renderPanel()
+    expect(
+      await screen.findByRole('link', { name: /api\.example\.com/ })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /mouow/ })
+    ).not.toBeInTheDocument()
   })
 })

@@ -31,11 +31,17 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { api } from '@/lib/api'
 
+type ExtraURL = {
+  label: string
+  url: string
+}
+
 type TunnelStatus = {
   available: boolean
   state: 'running' | 'stopped' | 'missing' | 'unavailable' | 'error'
   token_set: boolean
   public_url?: string
+  extra_urls?: ExtraURL[]
   msg?: string
 }
 
@@ -111,7 +117,11 @@ export function PublicAccessPanel() {
         action,
         token: tokenInput.trim() || undefined,
       })
-      return res.data as { ok: boolean; msg?: string; state?: TunnelStatus['state'] }
+      return res.data as {
+        ok: boolean
+        msg?: string
+        state?: TunnelStatus['state']
+      }
     },
     onSuccess: (res) => {
       if (!res.ok) {
@@ -148,7 +158,11 @@ export function PublicAccessPanel() {
   const h2cMutation = useMutation({
     mutationFn: async (h2c: boolean) => {
       const res = await api.post('/api/farmctl/config', { h2c })
-      return res.data as { ok: boolean; msg?: string; config?: FarmGatewayConfig }
+      return res.data as {
+        ok: boolean
+        msg?: string
+        config?: FarmGatewayConfig
+      }
     },
     onSuccess: (res) => {
       if (!res.ok) {
@@ -237,6 +251,7 @@ export function PublicAccessPanel() {
           <div className='flex items-center gap-2'>
             <span className='text-muted-foreground shrink-0 text-xs'>
               {t('Public URL')}
+              <span className='text-muted-foreground/70 ml-1'>(Cloudflare)</span>
             </span>
             <a
               href={tunnel.public_url}
@@ -258,6 +273,41 @@ export function PublicAccessPanel() {
               tooltip={t('Copy URL')}
               aria-label={t('Copy URL')}
             />
+          </div>
+        )}
+
+        {tunnel.extra_urls && tunnel.extra_urls.length > 0 && (
+          <div className='flex flex-col gap-1.5'>
+            {tunnel.extra_urls.map((x) => (
+              <div key={x.url} className='flex items-center gap-2'>
+                <span
+                  className='text-muted-foreground shrink-0 text-xs'
+                  title={x.label}
+                >
+                  {x.label}
+                </span>
+                <a
+                  href={x.url}
+                  target='_blank'
+                  rel='noreferrer'
+                  className='bg-muted/60 hover:bg-muted flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border px-2.5 transition-colors'
+                >
+                  <Globe className='text-muted-foreground size-3.5 shrink-0' />
+                  <span className='min-w-0 flex-1 truncate font-mono text-xs'>
+                    {x.url}
+                  </span>
+                  <ExternalLink className='text-muted-foreground size-3.5 shrink-0' />
+                </a>
+                <CopyButton
+                  value={x.url}
+                  variant='outline'
+                  size='sm'
+                  iconClassName='size-3.5'
+                  tooltip={t('Copy URL')}
+                  aria-label={t('Copy URL')}
+                />
+              </div>
+            ))}
           </div>
         )}
 
