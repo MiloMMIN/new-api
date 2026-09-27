@@ -96,6 +96,10 @@ export function useSummaryCardsConfig(totals: {
   usedDisplay: string
   requestCountDisplay: string
   avgLatencyDisplay: string
+  todayTokensDisplay: string
+  totalTokensDisplay: string
+  cacheHitDisplay: string
+  successRateDisplay: string
   currencyLabel: string
   currencyEnabled: boolean
 }) {
@@ -133,6 +137,34 @@ export function useSummaryCardsConfig(totals: {
       value: totals.avgLatencyDisplay,
       description: t('Average response time in the last 24 hours'),
       icon: Timer,
+    },
+    {
+      key: 'todayTokens',
+      title: t('Last 24h tokens'),
+      value: totals.todayTokensDisplay,
+      description: t('Tokens consumed in the last 24 hours'),
+      icon: Layers,
+    },
+    {
+      key: 'totalTokens',
+      title: t('Historical tokens'),
+      value: totals.totalTokensDisplay,
+      description: t('Total tokens consumed'),
+      icon: Coins,
+    },
+    {
+      key: 'cacheHit',
+      title: t('Cache hit rate'),
+      value: totals.cacheHitDisplay,
+      description: t('Average cache hit rate in the last 24 hours'),
+      icon: Zap,
+    },
+    {
+      key: 'successRate',
+      title: t('Success rate'),
+      value: totals.successRateDisplay,
+      description: t('Request success rate in the last 24 hours'),
+      icon: Gauge,
     },
   ]
 }

@@ -28,7 +28,7 @@ import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
-import { formatLatency } from '@/features/performance-metrics/lib/format'
+import { formatLatency, formatUptimePct } from '@/features/performance-metrics/lib/format'
 import { useStatus } from '@/hooks/use-status'
 import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
 import { formatNumber, formatQuota } from '@/lib/format'
@@ -176,15 +176,57 @@ export function SummaryCards() {
     retry: false,
   })
 
+  const historyTimeRange = useMemo(() => computeTimeRange(365), [])
+  const historyTrendQuery = useQuery({
+    queryKey: [
+      'dashboard',
+      'overview',
+      'summary-history-tokens',
+      historyTimeRange.start_timestamp,
+      historyTimeRange.end_timestamp,
+    ],
+    queryFn: async () =>
+      requireServerSuccess(
+        await getUserQuotaDates({
+          start_timestamp: historyTimeRange.start_timestamp,
+          end_timestamp: historyTimeRange.end_timestamp,
+          default_time: 'hour',
+        })
+      ),
+    staleTime: 60 * 1000,
+  })
+
+  const perfSummary = perfSummaryQuery.data?.data.summary
+
   const summaryValues = useMemo(() => {
     return {
       usedDisplay: formatQuota(usedQuota),
       requestCountDisplay: formatNumber(requestCount),
-      avgLatencyDisplay: formatLatency(
-        perfSummaryQuery.data?.data.summary?.avg_latency_ms ?? 0
+      avgLatencyDisplay: formatLatency(perfSummary?.avg_latency_ms ?? 0),
+      todayTokensDisplay: formatNumber(
+        (usageTrendQuery.data?.data ?? []).reduce(
+          (total, item) => total + (Number(item.token_used) || 0),
+          0
+        )
+      ),
+      totalTokensDisplay: formatNumber(
+        (historyTrendQuery.data?.data ?? []).reduce(
+          (total, item) => total + (Number(item.token_used) || 0),
+          0
+        )
+      ),
+      cacheHitDisplay: formatUptimePct(perfSummary?.cache_hit_rate ?? Number.NaN),
+      successRateDisplay: formatUptimePct(
+        perfSummary?.success_rate ?? Number.NaN
       ),
     }
-  }, [requestCount, usedQuota, perfSummaryQuery.data])
+  }, [
+    requestCount,
+    usedQuota,
+    perfSummary,
+    usageTrendQuery.data?.data,
+    historyTrendQuery.data?.data,
+  ])
 
   const currencyEnabledFromStore = isCurrencyDisplayEnabled()
   const statusCurrencyFlag =
@@ -248,7 +290,16 @@ export function SummaryCards() {
     currencyEnabled,
     currencyLabel,
   }).map((config, index) => {
-    const tones = ['accent-1', 'accent-2', 'accent-3', 'accent-2'] as const
+    const tones = [
+      'accent-1',
+      'accent-2',
+      'accent-3',
+      'accent-2',
+      'accent-1',
+      'accent-2',
+      'accent-3',
+      'accent-2',
+    ] as const
 
     return {
       key: config.key,
