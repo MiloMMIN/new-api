@@ -38,7 +38,9 @@ export function resolveServerAddress(
   const s = status as Record<string, unknown> | null | undefined
   const data = s?.data as Record<string, unknown> | undefined
   const candidate =
-    s?.server_address ?? s?.serverAddress ?? data?.server_address ??
+    s?.server_address ??
+    s?.serverAddress ??
+    data?.server_address ??
     data?.serverAddress
 
   if (typeof candidate === 'string' && candidate.trim() !== '') {

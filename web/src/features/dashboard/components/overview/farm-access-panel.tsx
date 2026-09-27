@@ -95,7 +95,9 @@ export function FarmAccessPanel() {
           <Badge
             variant='outline'
             className={
-              cfg.lan ? 'border-success/40 bg-success/10 text-success' : undefined
+              cfg.lan
+                ? 'border-success/40 bg-success/10 text-success'
+                : undefined
             }
           >
             <Globe data-icon='inline-start' />

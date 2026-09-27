@@ -50,9 +50,12 @@ it('trims whitespace and strips trailing slashes', () => {
   ).toBe('https://api.example.com')
 })
 
-it.each([[null], [undefined], [{}], [{ server_address: '' }], [{ server_address: '   ' }]])(
-  'falls back to the current origin for %j',
-  (status) => {
-    expect(resolveServerAddress(status)).toBe(window.location.origin)
-  }
-)
+it.each([
+  [null],
+  [undefined],
+  [{}],
+  [{ server_address: '' }],
+  [{ server_address: '   ' }],
+])('falls back to the current origin for %j', (status) => {
+  expect(resolveServerAddress(status)).toBe(window.location.origin)
+})
