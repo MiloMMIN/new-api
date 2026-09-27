@@ -51,6 +51,19 @@ export async function getUserQuotaDates(
   return res.data
 }
 
+export type UserQuotaSummary = {
+  total_tokens: number
+  total_quota: number
+  total_count: number
+}
+
+export async function getUserQuotaSummary() {
+  const res = await api.get<{ success: boolean; data: UserQuotaSummary }>(
+    '/api/data/self/summary'
+  )
+  return res.data
+}
+
 // ----------------------------------------------------------------------------
 // System Monitoring
 // ----------------------------------------------------------------------------

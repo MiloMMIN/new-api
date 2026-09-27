@@ -85,6 +85,23 @@ func GetUserQuotaDates(c *gin.Context) {
 	return
 }
 
+// GetUserQuotaSummary returns the all-time aggregate of quota_data rows for the
+// current user. Unlike GetUserQuotaDates it is not bounded by the 30-day window
+// — it's a single SUM() with no grouping, so it's cheap regardless of history.
+func GetUserQuotaSummary(c *gin.Context) {
+	userId := c.GetInt("id")
+	summary, err := model.GetUserQuotaSummary(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    summary,
+	})
+}
+
 func GetAllFlowQuotaDates(c *gin.Context) {
 	startTimestamp, endTimestamp, ok := parseFlowQuotaTimeRange(c)
 	if !ok {

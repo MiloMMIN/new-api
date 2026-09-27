@@ -181,3 +181,18 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 	err = DB.Table("quota_data").Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").Where("created_at >= ? and created_at <= ?", startTime, endTime).Group("model_name, created_at").Find(&quotaDatas).Error
 	return quotaDatas, err
 }
+
+// UserQuotaSummary is the all-time aggregate for a single user on quota_data.
+type UserQuotaSummary struct {
+	TotalTokens int64 `json:"total_tokens"`
+	TotalQuota  int64 `json:"total_quota"`
+	TotalCount  int64 `json:"total_count"`
+}
+
+func GetUserQuotaSummary(userId int) (summary UserQuotaSummary, err error) {
+	err = DB.Table("quota_data").
+		Select("COALESCE(sum(token_used),0) as total_tokens, COALESCE(sum(quota),0) as total_quota, COALESCE(sum(count),0) as total_count").
+		Where("user_id = ?", userId).
+		Scan(&summary).Error
+	return summary, err
+}

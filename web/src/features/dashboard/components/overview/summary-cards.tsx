@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next'
 
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { Button } from '@/components/ui/button'
-import { getUserQuotaDates } from '@/features/dashboard/api'
+import { getUserQuotaDates, getUserQuotaSummary } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
@@ -176,23 +176,9 @@ export function SummaryCards() {
     retry: false,
   })
 
-  const historyTimeRange = useMemo(() => computeTimeRange(365), [])
-  const historyTrendQuery = useQuery({
-    queryKey: [
-      'dashboard',
-      'overview',
-      'summary-history-tokens',
-      historyTimeRange.start_timestamp,
-      historyTimeRange.end_timestamp,
-    ],
-    queryFn: async () =>
-      requireServerSuccess(
-        await getUserQuotaDates({
-          start_timestamp: historyTimeRange.start_timestamp,
-          end_timestamp: historyTimeRange.end_timestamp,
-          default_time: 'hour',
-        })
-      ),
+  const historySummaryQuery = useQuery({
+    queryKey: ['dashboard', 'overview', 'summary-history-tokens'],
+    queryFn: async () => requireServerSuccess(await getUserQuotaSummary()),
     staleTime: 60 * 1000,
   })
 
@@ -210,10 +196,7 @@ export function SummaryCards() {
         )
       ),
       totalTokensDisplay: formatNumber(
-        (historyTrendQuery.data?.data ?? []).reduce(
-          (total, item) => total + (Number(item.token_used) || 0),
-          0
-        )
+        historySummaryQuery.data?.data.total_tokens ?? 0
       ),
       cacheHitDisplay: formatUptimePct(perfSummary?.cache_hit_rate ?? Number.NaN),
       successRateDisplay: formatUptimePct(
@@ -225,7 +208,7 @@ export function SummaryCards() {
     usedQuota,
     perfSummary,
     usageTrendQuery.data?.data,
-    historyTrendQuery.data?.data,
+    historySummaryQuery.data?.data,
   ])
 
   const currencyEnabledFromStore = isCurrencyDisplayEnabled()
