@@ -102,9 +102,7 @@ export function AnnouncementEditDialog(props: AnnouncementEditDialogProps) {
       title={
         props.announcement ? t('Edit Announcement') : t('Add Announcement')
       }
-      description={t(
-        'Create or update system announcements for the dashboard'
-      )}
+      description={t('Create or update system announcements for the dashboard')}
       contentClassName='sm:max-w-lg'
       contentHeight='auto'
       bodyClassName='space-y-4'
@@ -164,7 +162,9 @@ export function AnnouncementEditDialog(props: AnnouncementEditDialogProps) {
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder={t('Select announcement type')} />
+                      <SelectValue
+                        placeholder={t('Select announcement type')}
+                      />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent alignItemWithTrigger={false}>

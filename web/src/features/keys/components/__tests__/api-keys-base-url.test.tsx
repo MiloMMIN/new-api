@@ -61,12 +61,13 @@ afterEach(() => {
 
 it('shows the configured server address with a copy button', async () => {
   vi.spyOn(api, 'get').mockResolvedValue({
-    data: { success: true, data: { server_address: 'https://api.example.com' } },
+    data: {
+      success: true,
+      data: { server_address: 'https://api.example.com' },
+    },
   })
   renderBaseUrl()
-  expect(
-    await screen.findByText('https://api.example.com')
-  ).toBeInTheDocument()
+  expect(await screen.findByText('https://api.example.com')).toBeInTheDocument()
   expect(
     screen.getByRole('button', { name: 'Copy base URL' })
   ).toBeInTheDocument()
@@ -74,7 +75,5 @@ it('shows the configured server address with a copy button', async () => {
 
 it('falls back to the current origin when no server address is configured', async () => {
   renderBaseUrl()
-  expect(
-    await screen.findByText(window.location.origin)
-  ).toBeInTheDocument()
+  expect(await screen.findByText(window.location.origin)).toBeInTheDocument()
 })

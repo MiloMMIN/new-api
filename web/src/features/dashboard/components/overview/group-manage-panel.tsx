@@ -107,7 +107,9 @@ export function GroupManagePanel() {
         <IconBadge tone='info' size='sm'>
           <Layers />
         </IconBadge>
-        <h3 className='shrink-0 text-sm font-semibold'>{t('Group management')}</h3>
+        <h3 className='shrink-0 text-sm font-semibold'>
+          {t('Group management')}
+        </h3>
         <span className='text-muted-foreground hidden min-w-0 truncate text-xs sm:inline'>
           {t('Group ratios and usable groups in billing settings')}
         </span>

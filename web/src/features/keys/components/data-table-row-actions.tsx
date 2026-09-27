@@ -226,10 +226,7 @@ export function DataTableRowActions<TData>({
           onClick={async () => {
             const realKey = await resolveRealKey(apiKey.id)
             if (!realKey) return
-            const connStr = encodeChannelConnectionInfo(
-              realKey,
-              serverAddress
-            )
+            const connStr = encodeChannelConnectionInfo(realKey, serverAddress)
             const ok = await copyToClipboard(connStr)
             if (ok) toast.success(t('Copied'))
           }}

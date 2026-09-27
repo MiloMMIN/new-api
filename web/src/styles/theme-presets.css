@@ -772,22 +772,21 @@ For commercial licensing, please contact support@quantumnous.com
 /* Frosted surfaces — translucency alone only shows the canvas through;
  * the blur is what sells the glass. Scoped to real surface slots so nested
  * content isn't re-blurred. */
-[data-theme-preset='jade-glass'] :is(
-    [data-slot='card'],
-    .bg-popover,
-    .bg-sidebar
-  ) {
+[data-theme-preset='jade-glass']
+  :is([data-slot='card'], .bg-popover, .bg-sidebar) {
   backdrop-filter: blur(20px) saturate(1.35);
   -webkit-backdrop-filter: blur(20px) saturate(1.35);
 }
 
 /* Teal gradient CTA — the preset's signature button treatment. */
-[data-theme-preset='jade-glass'] [data-slot='button'].bg-primary:not(:disabled) {
+[data-theme-preset='jade-glass']
+  [data-slot='button'].bg-primary:not(:disabled) {
   background-image: linear-gradient(to right, var(--primary), var(--jg-deep));
-  box-shadow:
-    0 2px 10px -2px color-mix(in oklch, var(--primary) 50%, transparent);
+  box-shadow: 0 2px 10px -2px
+    color-mix(in oklch, var(--primary) 50%, transparent);
 }
-[data-theme-preset='jade-glass'] [data-slot='button'].bg-primary:not(:disabled):hover {
+[data-theme-preset='jade-glass']
+  [data-slot='button'].bg-primary:not(:disabled):hover {
   filter: brightness(1.07);
 }
 

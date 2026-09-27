@@ -944,10 +944,7 @@ export function useChannelsColumns(
           if (isTagAggregateRow(row.original)) {
             return <span className='text-muted-foreground text-xs'>-</span>
           }
-          const baseUrl = row.getValue('base_url') as
-            | string
-            | null
-            | undefined
+          const baseUrl = row.getValue('base_url') as string | null | undefined
           if (!baseUrl) {
             return <span className='text-muted-foreground text-xs'>-</span>
           }
