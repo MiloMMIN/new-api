@@ -196,3 +196,17 @@ func GetUserQuotaSummary(userId int) (summary UserQuotaSummary, err error) {
 		Scan(&summary).Error
 	return summary, err
 }
+
+// AdminQuotaSummary aggregates the whole quota_data table — admin only.
+type AdminQuotaSummary struct {
+	TotalTokens int64 `json:"total_tokens"`
+	TotalQuota  int64 `json:"total_quota"`
+	TotalCount  int64 `json:"total_count"`
+}
+
+func GetAdminQuotaSummary() (summary AdminQuotaSummary, err error) {
+	err = DB.Table("quota_data").
+		Select("COALESCE(sum(token_used),0) as total_tokens, COALESCE(sum(quota),0) as total_quota, COALESCE(sum(count),0) as total_count").
+		Scan(&summary).Error
+	return summary, err
+}

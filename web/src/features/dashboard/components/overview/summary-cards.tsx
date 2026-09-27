@@ -24,8 +24,15 @@ import { useTranslation } from 'react-i18next'
 
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { Button } from '@/components/ui/button'
-import { getUserQuotaDates, getUserQuotaSummary } from '@/features/dashboard/api'
-import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
+import {
+  getAdminQuotaSummary,
+  getUserQuotaDates,
+  getUserQuotaSummary,
+} from '@/features/dashboard/api'
+import {
+  useAdminSummaryCardsConfig,
+  useSummaryCardsConfig,
+} from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import { formatLatency, formatUptimePct } from '@/features/performance-metrics/lib/format'
@@ -35,6 +42,7 @@ import { formatNumber, formatQuota } from '@/lib/format'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
+import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { StatCard } from '../ui/stat-card'
@@ -143,6 +151,7 @@ export function SummaryCards() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
   const { status, loading } = useStatus()
+  const isSuperAdmin = Boolean(user?.role && user.role >= ROLE.SUPER_ADMIN)
 
   const summaryTimeRange = useMemo(() => computeTimeRange(1), [])
   const remainQuota = Number(user?.quota ?? 0)
@@ -179,6 +188,13 @@ export function SummaryCards() {
   const historySummaryQuery = useQuery({
     queryKey: ['dashboard', 'overview', 'summary-history-tokens'],
     queryFn: async () => requireServerSuccess(await getUserQuotaSummary()),
+    staleTime: 60 * 1000,
+  })
+
+  const adminSummaryQuery = useQuery({
+    queryKey: ['dashboard', 'overview', 'admin-site-summary'],
+    queryFn: async () => requireServerSuccess(await getAdminQuotaSummary()),
+    enabled: isSuperAdmin,
     staleTime: 60 * 1000,
   })
 
@@ -299,6 +315,34 @@ export function SummaryCards() {
     }
   })
 
+  const adminValues = useMemo(() => {
+    const d = adminSummaryQuery.data?.data
+    return {
+      allSiteTokensDisplay: formatNumber(d?.total_tokens ?? 0),
+      allSiteUsageDisplay: formatQuota(d?.total_quota ?? 0),
+      allSiteLatencyDisplay: formatLatency(d?.avg_latency_ms ?? 0),
+      allSiteSuccessRateDisplay: formatUptimePct(
+        d?.success_rate ?? Number.NaN
+      ),
+    }
+  }, [adminSummaryQuery.data?.data])
+
+  const adminItems = useAdminSummaryCardsConfig({
+    ...adminValues,
+    currencyEnabled,
+    currencyLabel,
+  }).map((config, index) => {
+    const tones = ['accent-1', 'accent-2', 'accent-3', 'accent-2'] as const
+    return {
+      key: config.key,
+      title: config.title,
+      value: config.value,
+      desc: config.description,
+      icon: config.icon,
+      tone: tones[index] ?? 'accent-2',
+    }
+  })
+
   return (
     <div className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
       <div className='grid xl:grid-cols-[minmax(0,1fr)_19rem]'>
@@ -333,6 +377,33 @@ export function SummaryCards() {
               </StaggerItem>
             ))}
           </StaggerContainer>
+          {isSuperAdmin && (
+            <div className='flex flex-col gap-2 pt-2 border-t mt-1'>
+              <div className='flex items-center justify-between'>
+                <span className='text-xs font-semibold text-muted-foreground'>
+                  {t('All-site totals (Super Admin)')}
+                </span>
+              </div>
+              <StaggerContainer className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
+                {adminItems.map((it) => (
+                  <StaggerItem
+                    key={it.key}
+                    className='bg-background/60 rounded-lg border px-2 py-1.5 sm:rounded-xl sm:p-3'
+                  >
+                    <StatCard
+                      title={it.title}
+                      value={it.value}
+                      description={it.desc}
+                      icon={it.icon}
+                      tone={it.tone}
+                      loading={loading || adminSummaryQuery.isLoading}
+                      compactMobile
+                    />
+                  </StaggerItem>
+                ))}
+              </StaggerContainer>
+            </div>
+          )}
         </div>
 
         <div className='flex flex-col justify-between gap-3 border-t bg-[linear-gradient(135deg,color-mix(in_oklch,var(--overview-accent-2)_12%,var(--background))_0%,color-mix(in_oklch,oklch(0.82_0.04_155)_8%,var(--background))_48%,color-mix(in_oklch,var(--overview-accent-1)_7%,var(--background))_100%)] p-3 sm:gap-4 sm:p-5 xl:border-t-0 xl:border-l'>

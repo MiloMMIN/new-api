@@ -64,6 +64,21 @@ export async function getUserQuotaSummary() {
   return res.data
 }
 
+export type AdminQuotaSummary = {
+  total_tokens: number
+  total_quota: number
+  total_count: number
+  avg_latency_ms: number
+  success_rate: number
+}
+
+export async function getAdminQuotaSummary() {
+  const res = await api.get<{ success: boolean; data: AdminQuotaSummary }>(
+    '/api/data/admin/summary'
+  )
+  return res.data
+}
+
 // ----------------------------------------------------------------------------
 // System Monitoring
 // ----------------------------------------------------------------------------

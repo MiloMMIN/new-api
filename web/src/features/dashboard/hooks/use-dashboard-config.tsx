@@ -168,3 +168,47 @@ export function useSummaryCardsConfig(totals: {
     },
   ]
 }
+
+export function useAdminSummaryCardsConfig(totals: {
+  allSiteTokensDisplay: string
+  allSiteUsageDisplay: string
+  allSiteLatencyDisplay: string
+  allSiteSuccessRateDisplay: string
+  currencyLabel: string
+  currencyEnabled: boolean
+}) {
+  const { t } = useTranslation()
+
+  return [
+    {
+      key: 'allSiteTokens',
+      title: t('All-site historical tokens'),
+      value: totals.allSiteTokensDisplay,
+      description: t('Total tokens consumed across all users'),
+      icon: Layers,
+    },
+    {
+      key: 'allSiteUsage',
+      title: t('All-site historical usage'),
+      value: totals.allSiteUsageDisplay,
+      description: totals.currencyEnabled
+        ? `${t('Total consumed across all users')} (${totals.currencyLabel})`
+        : t('Total quota consumed across all users'),
+      icon: TrendingUp,
+    },
+    {
+      key: 'allSiteLatency',
+      title: t('All-site average latency'),
+      value: totals.allSiteLatencyDisplay,
+      description: t('All-time average response time across the site'),
+      icon: Timer,
+    },
+    {
+      key: 'allSiteSuccessRate',
+      title: t('All-site success rate'),
+      value: totals.allSiteSuccessRateDisplay,
+      description: t('All-time request success rate across the site'),
+      icon: Gauge,
+    },
+  ]
+}
