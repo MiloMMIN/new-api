@@ -64,13 +64,6 @@ function toolbarProps(): PricingToolbarProps {
     groupRatios: { default: 1, premium: 3 },
     tags: [],
     models: testModels,
-    facetModels: {
-      vendor: testModels,
-      group: testModels,
-      quotaType: testModels,
-      endpointType: testModels,
-      tag: testModels,
-    },
     hasActiveFilters: false,
     activeFilterCount: 0,
     onClearFilters: vi.fn(),

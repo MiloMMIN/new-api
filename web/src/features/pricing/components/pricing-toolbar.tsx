@@ -46,7 +46,6 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 
 import { getSortLabels, type SortOption, type ViewMode } from '../constants'
-import type { FacetKey } from '../lib/filters'
 import type { PricingModel, PricingVendor, TokenUnit } from '../types'
 import { PricingSidebar } from './pricing-sidebar'
 
@@ -76,7 +75,6 @@ export interface PricingToolbarProps {
   groupRatios?: Record<string, number>
   tags: string[]
   models: PricingModel[]
-  facetModels: Record<FacetKey, PricingModel[]>
   hasActiveFilters: boolean
   activeFilterCount: number
   onClearFilters: () => void
@@ -221,7 +219,6 @@ export function PricingToolbar(props: PricingToolbarProps) {
               groupRatios={props.groupRatios}
               tags={props.tags}
               models={props.models}
-              facetModels={props.facetModels}
               hasActiveFilters={props.hasActiveFilters}
               onClearFilters={props.onClearFilters}
               className='border-0 bg-transparent p-0 shadow-none'

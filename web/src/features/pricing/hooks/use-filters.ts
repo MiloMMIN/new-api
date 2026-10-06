@@ -30,12 +30,7 @@ import {
   VIEW_MODES,
   type ViewMode,
 } from '../constants'
-import {
-  filterAndSortModels,
-  facetFilteredModels,
-  extractAllTags,
-  type FacetKey,
-} from '../lib/filters'
+import { filterAndSortModels, extractAllTags } from '../lib/filters'
 import type { PricingModel, TokenUnit } from '../types'
 
 type FilterState = {
@@ -174,37 +169,6 @@ export function useFilters(models: PricingModel[]) {
     sortBy,
   ])
 
-  // Facet counts: each sidebar section counts models matching all filters
-  // except its own facet, so a chip never shows a count that yields nothing.
-  const facetModels = useMemo<Record<FacetKey, PricingModel[]>>(() => {
-    const filters = {
-      search: debouncedSearchInput,
-      vendor: vendorFilter,
-      group: groupFilter,
-      quotaType: quotaTypeFilter,
-      endpointType: endpointTypeFilter,
-      tag: tagFilter,
-      sortBy,
-    }
-    const all = models || []
-    return {
-      vendor: facetFilteredModels(all, filters, 'vendor'),
-      group: facetFilteredModels(all, filters, 'group'),
-      quotaType: facetFilteredModels(all, filters, 'quotaType'),
-      endpointType: facetFilteredModels(all, filters, 'endpointType'),
-      tag: facetFilteredModels(all, filters, 'tag'),
-    }
-  }, [
-    models,
-    debouncedSearchInput,
-    vendorFilter,
-    groupFilter,
-    quotaTypeFilter,
-    endpointTypeFilter,
-    tagFilter,
-    sortBy,
-  ])
-
   const hasActiveFilters = useMemo(
     () =>
       vendorFilter !== FILTER_ALL ||
@@ -261,7 +225,6 @@ export function useFilters(models: PricingModel[]) {
     setViewMode,
     setShowRechargePrice,
     filteredModels,
-    facetModels,
     hasActiveFilters,
     activeFilterCount,
     availableTags,
