@@ -150,6 +150,51 @@ func TestParseKnownProviderModelSuffix(t *testing.T) {
 	})
 }
 
+func TestParseOpenAIEffortExpandedFamilies(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ name, wantEffort, wantBase string }{
+		{"swe-2-max", "max", "swe-2"},
+		{"swe-2-high", "high", "swe-2"},
+		{"swe-1-7-medium", "medium", "swe-1-7"},
+		{"kimi-k3-max", "max", "kimi-k3"},
+		{"kimi-k3-high", "high", "kimi-k3"},
+		{"glm-5-3-low", "low", "glm-5-3"},
+		{"glm-5-3-flash-max", "max", "glm-5-3-flash"},
+		{"deepseek-v4-pro-max", "max", "deepseek-v4-pro"},
+		{"inkling-xhigh", "xhigh", "inkling"},
+		{"grok-4-6-high", "high", "grok-4-6"},
+		{"nemotron-3-ultra-medium", "medium", "nemotron-3-ultra"},
+		{"hunyuan-2.0-low", "low", "hunyuan-2.0"},
+		{"hy4-preview-max", "max", "hy4-preview"},
+	}
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			effort, base := ParseOpenAIReasoningEffortFromModelSuffix(tt.name, nil)
+			assert.Equal(t, tt.wantEffort, effort, tt.name)
+			assert.Equal(t, tt.wantBase, base, tt.name)
+		})
+	}
+
+	// 功能后缀与未知家族不剥：保持不透明
+	opaque := []string{
+		"swe-1-6-fast",           // -fast 是 tier 修饰词不是 effort
+		"gpt-5-6-sol-high-priority", // 多个 token，不在白名单 token 集
+		"qwen-max",               // 未知家族
+		"random-thing-high",      // 未知家族
+	}
+	for _, name := range opaque {
+		name := name
+		t.Run("opaque/"+name, func(t *testing.T) {
+			t.Parallel()
+			effort, base := ParseOpenAIReasoningEffortFromModelSuffix(name, nil)
+			assert.Empty(t, effort, name)
+			assert.Equal(t, name, base, name)
+		})
+	}
+}
+
 func TestParseThinkingModifier(t *testing.T) {
 	t.Parallel()
 

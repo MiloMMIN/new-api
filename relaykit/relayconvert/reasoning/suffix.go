@@ -16,10 +16,33 @@ var OpenAIEffortSuffixes = []string{"-max", "-xhigh", "-high", "-medium", "-low"
 var DeepSeekV4EffortSuffixes = []string{"-none", "-max"}
 
 var (
-	legacyOpenAIModelPattern = regexp.MustCompile(`^(gpt-[a-z0-9][a-z0-9._-]*|o[1-9][a-z0-9._-]*)$`)
 	legacyClaudeModelPattern = regexp.MustCompile(`^claude-[a-z0-9][a-z0-9._-]*$`)
 	legacyGeminiModelPattern = regexp.MustCompile(`^gemini-[a-z0-9][a-z0-9._-]*$`)
 )
+
+// legacyOpenAIEffortFamilies 是允许剥 trailing effort 后缀（low/medium/high/
+// xhigh/max/minimal/none）的模型名前缀白名单。除 gpt-/o 系外，还放行 devin
+// 这类网关把档位编码进真实 id 的家族（swe-2、kimi-k3、glm、deepseek、inkling、
+// grok、nemotron、hunyuan、hy），让它们也能按 base 名聚合、由本地 effort 决定
+// 档位。名单外的名字保持不透明，避免误剥真实模型 id 的后缀。
+var legacyOpenAIEffortFamilies = []string{
+	"gpt-", "gpt.",
+	"o1", "o3", "o4",
+	"swe-", "kimi-", "glm-", "deepseek-", "inkling-",
+	"grok-", "nemotron-", "hunyuan-", "hy",
+}
+
+func legacyOpenAIModelPatternMatch(name string) bool {
+	l := strings.ToLower(name)
+	for _, p := range legacyOpenAIEffortFamilies {
+		// 家族前缀写成 "swe-" 形式；剥完后缀的 base 可能是裸家族名
+		// （inkling-xhigh → inkling），故同时放行 "前缀" 与 "等于去尾缀"。
+		if strings.HasPrefix(l, p) || l == strings.TrimSuffix(p, "-") || l == strings.TrimSuffix(p, ".") {
+			return true
+		}
+	}
+	return false
+}
 
 type ModelModifier struct {
 	Key   string
@@ -130,7 +153,7 @@ func ParseOpenAIReasoningEffortFromModelSuffix(modelName string, preserveEffortT
 		return "", modelName
 	}
 	baseModel, effort, ok := TrimEffortSuffixWithSuffixes(modelName, OpenAIEffortSuffixes)
-	if !ok || !legacyOpenAIModelPattern.MatchString(lastModelPathSegment(baseModel)) {
+	if !ok || !legacyOpenAIModelPatternMatch(lastModelPathSegment(baseModel)) {
 		return "", modelName
 	}
 	return effort, baseModel
