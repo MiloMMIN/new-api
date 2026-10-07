@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -143,6 +144,7 @@ func GetChannel(
 ) (*Channel, error) {
 	var abilities []Ability
 	var err error
+	lookupName := model // all-pool 过滤器按渠道自身模型名单校验用的名字（fallback 后切归一名）
 	if group == AllChannelsGroup {
 		// The all pool has no ability rows of its own; every enabled channel
 		// offering the model under its all-pool filter is a candidate.
@@ -153,9 +155,25 @@ func GetChannel(
 	if err != nil {
 		return nil, err
 	}
+	if len(abilities) == 0 {
+		// 与内存缓存路径对称：精确名未命中时，按归一化名（剥 effort 后缀）
+		// 再查一次，让渠道列表可以只保留 base 名、由客户端在请求里带档位。
+		if normalized := ratio_setting.RoutingMatchModelName(model); normalized != "" && normalized != model {
+			if group == AllChannelsGroup {
+				err = DB.Where("model = ? and enabled = ?", normalized, true).Order("priority DESC, weight DESC").Find(&abilities).Error
+			} else {
+				err = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, normalized, true).Order("priority DESC, weight DESC").Find(&abilities).Error
+			}
+			if err != nil {
+				return nil, err
+			}
+			// all-pool 过滤器按渠道自身模型名单校验，fallback 后须用归一名
+			lookupName = normalized
+		}
+	}
 	abilities = filterAbilitiesByConstraints(abilities, model, filters)
 	if group == AllChannelsGroup {
-		abilities = filterAbilitiesForAllPool(abilities, model)
+		abilities = filterAbilitiesForAllPool(abilities, lookupName)
 	}
 	if len(abilities) > 0 {
 		priorities := make([]int64, 0)

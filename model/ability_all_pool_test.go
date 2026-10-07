@@ -133,3 +133,27 @@ func TestInitChannelCacheSynthesizesAllPool(t *testing.T) {
 	require.NotNil(t, channel)
 	assert.Equal(t, kimi.Id, channel.Id)
 }
+
+func TestGetChannelNormalizesEffortSuffixDBPath(t *testing.T) {
+	setupAbilitiesTestDB(t)
+	initCol()
+	// 渠道列表只保留 base 名；带 effort 后缀的请求靠 DB 路径的归一化 fallback 路由。
+	swe := newAllPoolChannel("swe-ch", "swe-2,swe-1-6", "swe")
+	require.NoError(t, DB.Create(swe).Error)
+	require.NoError(t, swe.AddAbilities(nil))
+
+	channel, err := GetChannel("swe", "swe-2-max", 0, nil)
+	require.NoError(t, err)
+	require.NotNil(t, channel)
+	assert.Equal(t, swe.Id, channel.Id)
+
+	channel, err = GetChannel(AllChannelsGroup, "swe-2-max", 0, nil)
+	require.NoError(t, err)
+	require.NotNil(t, channel)
+	assert.Equal(t, swe.Id, channel.Id)
+
+	// 不该误归一的opaque名字保持原样（无渠道 → nil）
+	channel, err = GetChannel("swe", "qwen-max", 0, nil)
+	require.NoError(t, err)
+	assert.Nil(t, channel)
+}
