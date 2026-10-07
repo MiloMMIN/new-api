@@ -136,6 +136,22 @@ type ChannelOtherSettings struct {
 	// rejection. Empty follows the default allow policy. Accepted values:
 	// "", "allow", "safe", "strict".
 	ToolLossPolicy string `json:"tool_loss_policy,omitempty"`
+	// ModelMeta exposes per-model catalog metadata (context window, output
+	// cap, supported reasoning levels) on /v1/models so downstream gateways
+	// (magpie, omp) can render thinking controls and correct limits without
+	// per-vendor hardcoding. Keys are the outward-facing model names (the
+	// same strings that appear in channel.models).
+	ModelMeta map[string]ChannelModelMeta `json:"model_meta,omitempty"`
+}
+
+// ChannelModelMeta describes one catalog model's capabilities as new-api
+// reports them on /v1/models. All fields optional; zero values fall back
+// to the requester's own inference.
+type ChannelModelMeta struct {
+	ContextLength   int      `json:"context_length,omitempty"`
+	MaxOutputTokens int      `json:"max_output_tokens,omitempty"`
+	Reasoning       bool     `json:"reasoning,omitempty"`
+	Efforts         []string `json:"efforts,omitempty"`
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {

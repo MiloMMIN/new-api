@@ -3,12 +3,23 @@ package dto
 import "github.com/QuantumNous/new-api/relaykit/types"
 
 // 这里不好动就不动了，本来想独立出来的（
+type ReasoningLevel struct {
+	Effort string `json:"effort"`
+}
+
 type OpenAIModels struct {
 	Id                     string               `json:"id"`
 	Object                 string               `json:"object"`
 	Created                int                  `json:"created"`
 	OwnedBy                string               `json:"owned_by"`
 	SupportedEndpointTypes []types.EndpointType `json:"supported_endpoint_types"`
+	// Magpie-compatible metadata (optional): lets gateways that read
+	// supported_reasoning_levels/context_length/max_output_tokens surface
+	// thinking controls and correct context windows without per-vendor config.
+	Reasoning                 bool             `json:"reasoning,omitempty"`
+	SupportedReasoningLevels  []ReasoningLevel `json:"supported_reasoning_levels,omitempty"`
+	ContextLength             int              `json:"context_length,omitempty"`
+	MaxOutputTokens           int              `json:"max_output_tokens,omitempty"`
 }
 
 type AnthropicModel struct {

@@ -176,6 +176,14 @@ func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.Open
 		oaiModel.OwnedBy = owner
 	}
 	oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
+	if meta := model.GetModelCatalogMeta(modelName); meta.ContextLength > 0 || len(meta.Efforts) > 0 {
+		oaiModel.ContextLength = meta.ContextLength
+		oaiModel.MaxOutputTokens = meta.MaxOutputTokens
+		oaiModel.Reasoning = meta.Reasoning || len(meta.Efforts) > 0
+		for _, e := range meta.Efforts {
+			oaiModel.SupportedReasoningLevels = append(oaiModel.SupportedReasoningLevels, dto.ReasoningLevel{Effort: e})
+		}
+	}
 	return oaiModel
 }
 

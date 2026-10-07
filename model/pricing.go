@@ -74,6 +74,14 @@ var (
 var (
 	modelSupportEndpointTypes = make(map[string][]constant.EndpointType)
 	modelSupportEndpointsLock = sync.RWMutex{}
+
+	// modelCatalogMeta carries per-model capabilities surfaced on /v1/models:
+	// context window, output cap, supported reasoning levels. Populated from
+	// channel `other_settings.model_meta` (the channel's outward model name is
+	// the key) at updatePricing time so downstream gateways (magpie, omp)
+	// discover thinking controls and correct limits without per-vendor config.
+	modelCatalogMeta     = make(map[string]dto.ChannelModelMeta)
+	modelCatalogMetaLock = sync.RWMutex{}
 )
 
 func GetPricing() []Pricing {
@@ -181,6 +189,53 @@ func loadPricingAdvancedCustomConfigs(enableAbilities []AbilityWithChannel) map[
 		}
 	}
 	return configs
+}
+
+// loadPricingModelMetas aggregates `other_settings.model_meta` across every
+// channel serving the given abilities, keyed by outward model name. First
+// write wins per field — channels are equivalent for catalog purposes, so a
+// single source of truth per model is acceptable.
+func loadPricingModelMetas(enableAbilities []AbilityWithChannel) map[string]dto.ChannelModelMeta {
+	channelIDs := make(map[int]struct{}, len(enableAbilities))
+	for _, a := range enableAbilities {
+		channelIDs[a.ChannelId] = struct{}{}
+	}
+	if len(channelIDs) == 0 {
+		return nil
+	}
+	meta := make(map[string]dto.ChannelModelMeta)
+	for chID := range channelIDs {
+		ch, err := CacheGetChannel(chID)
+		if err != nil || ch == nil {
+			continue
+		}
+		settings := ch.GetOtherSettings()
+		for name, m := range settings.ModelMeta {
+			cur := meta[name]
+			if cur.ContextLength == 0 {
+				cur.ContextLength = m.ContextLength
+			}
+			if cur.MaxOutputTokens == 0 {
+				cur.MaxOutputTokens = m.MaxOutputTokens
+			}
+			if !cur.Reasoning && m.Reasoning {
+				cur.Reasoning = true
+			}
+			if len(cur.Efforts) == 0 && len(m.Efforts) > 0 {
+				cur.Efforts = m.Efforts
+			}
+			meta[name] = cur
+		}
+	}
+	return meta
+}
+
+// GetModelCatalogMeta exposes the aggregated model_meta for one model, for
+// use by the /v1/models serializer. Missing entries return zero values.
+func GetModelCatalogMeta(model string) dto.ChannelModelMeta {
+	modelCatalogMetaLock.RLock()
+	defer modelCatalogMetaLock.RUnlock()
+	return modelCatalogMeta[model]
 }
 
 func appendPricingEndpoint(endpoints []string, endpoint string) []string {
@@ -443,6 +498,12 @@ func updatePricing() {
 		modelQuotaTypeMap[p.ModelName] = p.QuotaType
 	}
 	modelEnableGroupsLock.Unlock()
+
+	// Refresh catalog metadata for /v1/models (thinking levels, context
+	// windows, output caps reported by downstream gateways like magpie).
+	modelCatalogMetaLock.Lock()
+	modelCatalogMeta = loadPricingModelMetas(enableAbilities)
+	modelCatalogMetaLock.Unlock()
 
 	lastGetPricingTime = time.Now()
 }
